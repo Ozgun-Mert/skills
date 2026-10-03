@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stock-analyzer/report-schema.json",
+  "title": "Stock analyzer report sidecar (<TICKER>.json)",
+  "description": "Machine-readable mirror of <TICKER>.md. Monetary values are raw numbers (not scaled) in meta.currency unless the key ends in _usd. Percentages are numbers (12.5 = 12.5%). Every user-visible short text is a localized object {en, tr}.",
+  "type": "object",
+  "required": ["schema_version", "meta", "snapshot", "price_series", "scores", "tags", "s1", "s2", "s3", "s4", "sources"],
+  "$defs": {
+    "L": {"type": "object", "required": ["en", "tr"], "properties": {"en": {"type": "string"}, "tr": {"type": "string"}}, "additionalProperties": false},
+    "LMH": {"enum": ["L", "M", "H"]},
+    "num": {"type": ["number", "null"]},
+    "horizon": {"enum": ["short", "medium", "long"]},
+    "trend": {"enum": ["up", "down", "flat"]},
+    "src": {"type": ["string", "null"], "description": "source id from sources[] (e.g. 's3') or URL"},
+    "score": {"type": "number", "minimum": 0, "maximum": 10},
+    "sub": {
+      "type": "object", "required": ["key", "label", "weight", "score"],
+      "properties": {"key": {"type": "string"}, "label": {"$ref": "#/$defs/L"}, "weight": {"type": "number"},
+                     "score": {"$ref": "#/$defs/score"}, "note": {"$ref": "#/$defs/L"}}
+    },
+    "component": {
+      "type": "object", "required": ["score", "subs"],
+      "properties": {"score": {"$ref": "#/$defs/score"}, "subs": {"type": "array", "items": {"$ref": "#/$defs/sub"}, "minItems": 1}}
+    },
+    "swotItem": {
+      "type": "object", "required": ["item", "evidence", "impact", "horizon"],
+      "properties": {"item": {"$ref": "#/$defs/L"}, "evidence": {"$ref": "#/$defs/L"}, "impact": {"$ref": "#/$defs/LMH"},
+                     "horizon": {"$ref": "#/$defs/horizon"}, "probability_pct": {"$ref": "#/$defs/num"}, "source": {"$ref": "#/$defs/src"}}
+    }
+  },
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "meta": {
+      "type": "object",
+      "required": ["ticker", "tv_symbol", "name", "exchange", "country", "sector", "currency", "fx_to_usd", "data_timestamp", "report_date", "classification"],
+      "properties": {
+        "ticker": {"type": "string"}, "tv_symbol": {"type": "string"}, "yahoo_symbol": {"type": "string"},
+        "name": {"type": "string"}, "exchange": {"type": "string"}, "country": {"type": ["string", "null"]},
+        "sector": {"type": ["string", "null"]}, "industry": {"type": ["string", "null"]},
+        "currency": {"type": "string"}, "fx_to_usd": {"type": ["number", "null"]},
+        "data_timestamp": {"type": "string"}, "report_date": {"type": "string"},
+        "classification": {"enum": ["Innovative", "Transitional", "Traditional"]},
+        "data_status": {"enum": ["ok", "partial", "unavailable"]}
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "required": ["price", "change_1d_pct", "perf_1m_pct", "market_cap", "market_cap_usd", "pe_ttm", "ev_ebitda", "rev_cagr_5y", "net_margin_pct"],
+      "properties": {
+        "price": {"$ref": "#/$defs/num"}, "change_1d_pct": {"$ref": "#/$defs/num"}, "perf_1m_pct": {"$ref": "#/$defs/num"},
+        "perf_ytd_pct": {"$ref": "#/$defs/num"}, "perf_1y_pct": {"$ref": "#/$defs/num"},
+        "market_cap": {"$ref": "#/$defs/num"}, "market_cap_usd": {"$ref": "#/$defs/num"}, "ev": {"$ref": "#/$defs/num"},
+        "high_52w": {"$ref": "#/$defs/num"}, "low_52w": {"$ref": "#/$defs/num"},
+        "pe_ttm": {"$ref": "#/$defs/num"}, "ev_ebitda": {"$ref": "#/$defs/num"},
+        "rev_cagr_5y": {"$ref": "#/$defs/num"}, "rev_cagr_5y_usd": {"$ref": "#/$defs/num"}, "net_margin_pct": {"$ref": "#/$defs/num"}
+      }
+    },
+    "price_series": {
+      "type": "object", "required": ["dates", "close"],
+      "properties": {"dates": {"type": "array", "items": {"type": "string"}}, "close": {"type": "array"},
+                     "sma50": {"type": "array"}, "sma200": {"type": "array"}}
+    },
+    "scores": {
+      "type": "object", "required": ["short", "medium", "long", "components"],
+      "properties": {
+        "short": {"$ref": "#/$defs/score"}, "medium": {"$ref": "#/$defs/score"}, "long": {"$ref": "#/$defs/score"},
+        "components": {
+          "type": "object", "required": ["C1", "C2", "C3", "C4a", "C4b"],
+          "properties": {"C1": {"$ref": "#/$defs/component"}, "C2": {"$ref": "#/$defs/component"}, "C3": {"$ref": "#/$defs/component"},
+                         "C4a": {"$ref": "#/$defs/component"}, "C4b": {"$ref": "#/$defs/component"}}
+        }
+      }
+    },
+    "tags": {
+      "type": "object", "required": ["manipulation", "ceo_trust", "news_risk"],
+      "properties": {"manipulation": {"$ref": "#/$defs/LMH"}, "ceo_trust": {"$ref": "#/$defs/LMH"}, "news_risk": {"$ref": "#/$defs/LMH"}}
+    },
+    "s1": {
+      "type": "object", "required": ["summary_today", "summary_future", "summary_futureproof", "segments", "value_chain", "roadmap", "futureproof"],
+      "properties": {
+        "summary_today": {"$ref": "#/$defs/L"}, "summary_future": {"$ref": "#/$defs/L"}, "summary_futureproof": {"$ref": "#/$defs/L"},
+        "segments": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["name", "revenue", "pct"],
+          "properties": {"name": {"$ref": "#/$defs/L"}, "revenue": {"$ref": "#/$defs/num"}, "pct": {"$ref": "#/$defs/num"},
+                         "yoy_pct": {"$ref": "#/$defs/num"}, "op_margin_pct": {"$ref": "#/$defs/num"}, "products": {"$ref": "#/$defs/L"}, "source": {"$ref": "#/$defs/src"}}}},
+        "geography": {"type": "array", "items": {"type": "object", "required": ["region", "pct"],
+          "properties": {"region": {"$ref": "#/$defs/L"}, "revenue": {"$ref": "#/$defs/num"}, "pct": {"$ref": "#/$defs/num"}}}},
+        "value_chain": {"type": "array", "minItems": 3, "items": {"type": "object", "required": ["role", "company", "provides", "dependency", "substitutable"],
+          "properties": {"role": {"$ref": "#/$defs/L"}, "company": {"type": "string"}, "provides": {"$ref": "#/$defs/L"},
+                         "dependency": {"$ref": "#/$defs/LMH"}, "substitutable": {"type": "boolean"}, "source": {"$ref": "#/$defs/src"}}}},
+        "roadmap": {"type": "array", "minItems": 2, "items": {"type": "object", "required": ["initiative", "target", "timeline", "status", "goal"],
+          "properties": {"initiative": {"$ref": "#/$defs/L"}, "target": {"$ref": "#/$defs/L"}, "timeline": {"type": "string"},
+                         "investment": {"type": ["string", "null"]}, "status": {"enum": ["announced", "development", "shipping"]},
+                         "goal": {"$ref": "#/$defs/L"}, "source": {"$ref": "#/$defs/src"}}}},
+        "futureproof": {"type": "object", "required": ["classification", "rnd_pct", "disruption_exposure", "moat_years"],
+          "properties": {"classification": {"enum": ["Innovative", "Transitional", "Traditional"]}, "rnd_pct": {"$ref": "#/$defs/num"},
+                         "rnd_peer_median_pct": {"$ref": "#/$defs/num"}, "new_product_rev_pct": {"$ref": "#/$defs/num"},
+                         "ip_position": {"$ref": "#/$defs/L"}, "disruption_exposure": {"$ref": "#/$defs/LMH"}, "moat_years": {"$ref": "#/$defs/num"}}}
+      }
+    },
+    "s2": {
+      "type": "object", "required": ["markets", "peers", "diff_matrix", "better_worse", "swot"],
+      "properties": {
+        "markets": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["segment", "tam", "our_share_pct", "shares"],
+          "properties": {"segment": {"$ref": "#/$defs/L"}, "tam": {"$ref": "#/$defs/num"}, "tam_unit": {"type": "string"},
+                         "cagr_pct": {"$ref": "#/$defs/num"}, "our_share_pct": {"$ref": "#/$defs/num"}, "share_trend": {"$ref": "#/$defs/trend"},
+                         "leader": {"type": "string"}, "shares": {"type": "array", "minItems": 2, "items": {"type": "object", "required": ["company", "pct"],
+                           "properties": {"company": {"type": "string"}, "pct": {"type": "number"}}}}, "source": {"$ref": "#/$defs/src"}}}},
+        "peers": {"type": "array", "minItems": 2, "items": {"type": "object", "required": ["ticker", "name", "is_subject"],
+          "properties": {"ticker": {"type": "string"}, "name": {"type": "string"}, "is_subject": {"type": "boolean"},
+                         "market_cap_usd": {"$ref": "#/$defs/num"}, "revenue_usd": {"$ref": "#/$defs/num"}, "rev_growth_pct": {"$ref": "#/$defs/num"},
+                         "gross_margin_pct": {"$ref": "#/$defs/num"}, "op_margin_pct": {"$ref": "#/$defs/num"}, "net_margin_pct": {"$ref": "#/$defs/num"},
+                         "rnd_pct": {"$ref": "#/$defs/num"}, "fcf_usd": {"$ref": "#/$defs/num"}, "pe": {"$ref": "#/$defs/num"}, "ev_ebitda": {"$ref": "#/$defs/num"}}}},
+        "diff_matrix": {"type": "object", "required": ["companies", "rows"],
+          "properties": {"companies": {"type": "array", "items": {"type": "string"}},
+                         "rows": {"type": "array", "minItems": 3, "items": {"type": "object", "required": ["feature", "values"],
+                           "properties": {"feature": {"$ref": "#/$defs/L"}, "values": {"type": "array", "items": {"enum": ["lead", "par", "behind"]}}}}}}},
+        "better_worse": {"type": "object", "required": ["better", "worse"],
+          "properties": {"better": {"type": "array", "items": {"type": "object", "required": ["item"], "properties": {"item": {"$ref": "#/$defs/L"}, "metric": {"type": ["string", "null"]}}}},
+                         "worse": {"type": "array", "items": {"type": "object", "required": ["item"], "properties": {"item": {"$ref": "#/$defs/L"}, "metric": {"type": ["string", "null"]}}}}}},
+        "swot": {"type": "object", "required": ["S", "W", "O", "T"],
+          "properties": {"S": {"type": "array", "minItems": 5, "items": {"$ref": "#/$defs/swotItem"}},
+                         "W": {"type": "array", "minItems": 5, "items": {"$ref": "#/$defs/swotItem"}},
+                         "O": {"type": "array", "minItems": 5, "items": {"$ref": "#/$defs/swotItem"}},
+                         "T": {"type": "array", "minItems": 5, "items": {"$ref": "#/$defs/swotItem"}}}}
+      }
+    },
+    "s3": {
+      "type": "object", "required": ["currency", "years", "growth", "anomalies", "balance"],
+      "properties": {
+        "currency": {"type": "string"},
+        "years": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["fy", "revenue", "net_income"],
+          "properties": {"fy": {"type": ["integer", "string"]}, "ttm": {"type": "boolean"}, "revenue": {"$ref": "#/$defs/num"}, "revenue_yoy_pct": {"$ref": "#/$defs/num"},
+                         "gross_profit": {"$ref": "#/$defs/num"}, "op_income": {"$ref": "#/$defs/num"}, "net_income": {"$ref": "#/$defs/num"},
+                         "net_income_yoy_pct": {"$ref": "#/$defs/num"}, "eps": {"$ref": "#/$defs/num"}, "fcf": {"$ref": "#/$defs/num"},
+                         "gross_margin_pct": {"$ref": "#/$defs/num"}, "op_margin_pct": {"$ref": "#/$defs/num"}, "net_margin_pct": {"$ref": "#/$defs/num"},
+                         "revenue_usd": {"$ref": "#/$defs/num"}, "net_income_usd": {"$ref": "#/$defs/num"}}}},
+        "years_missing_reason": {"$ref": "#/$defs/L"},
+        "growth": {"type": "array", "items": {"type": "object", "required": ["metric"],
+          "properties": {"metric": {"$ref": "#/$defs/L"}, "cagr_5y": {"$ref": "#/$defs/num"}, "cagr_3y": {"$ref": "#/$defs/num"},
+                         "last_yoy": {"$ref": "#/$defs/num"}, "peer_median": {"$ref": "#/$defs/num"}}}},
+        "anomalies": {"type": "array", "items": {"type": "object", "required": ["fy", "metric", "change_pct", "cause", "one_off", "impact", "duration"],
+          "properties": {"fy": {"type": ["integer", "string"]}, "metric": {"$ref": "#/$defs/L"}, "change_pct": {"$ref": "#/$defs/num"},
+                         "cause": {"$ref": "#/$defs/L"}, "one_off": {"type": "boolean"}, "impact": {"$ref": "#/$defs/LMH"},
+                         "duration": {"$ref": "#/$defs/L"}, "source": {"$ref": "#/$defs/src"}}}},
+        "balance": {"type": "array", "minItems": 4, "items": {"type": "object", "required": ["metric", "value"],
+          "properties": {"metric": {"$ref": "#/$defs/L"}, "value": {"type": ["number", "string", "null"]}, "trend": {"$ref": "#/$defs/trend"}, "note": {"$ref": "#/$defs/L"}}}}
+      }
+    },
+    "s4": {
+      "type": "object", "required": ["multiples", "worth", "consensus", "forecast_1m", "manipulation", "ceo", "world_exposure", "news"],
+      "properties": {
+        "multiples": {"type": "array", "minItems": 3, "items": {"type": "object", "required": ["name", "current", "verdict"],
+          "properties": {"name": {"type": "string"}, "current": {"$ref": "#/$defs/num"}, "avg_5y": {"$ref": "#/$defs/num"},
+                         "peer_median": {"$ref": "#/$defs/num"}, "premium_pct": {"$ref": "#/$defs/num"}, "verdict": {"enum": ["cheap", "fair", "rich", "n/a"]}}}},
+        "worth": {"type": "object", "required": ["market_cap", "ev", "fair_low", "fair_mid", "fair_high", "upside_pct", "methods"],
+          "properties": {"market_cap": {"$ref": "#/$defs/num"}, "ev": {"$ref": "#/$defs/num"}, "fair_low": {"$ref": "#/$defs/num"},
+                         "fair_mid": {"$ref": "#/$defs/num"}, "fair_high": {"$ref": "#/$defs/num"}, "upside_pct": {"$ref": "#/$defs/num"},
+                         "methods": {"type": "array", "items": {"type": "object", "required": ["method", "value"],
+                           "properties": {"method": {"$ref": "#/$defs/L"}, "value": {"$ref": "#/$defs/num"}, "assumptions": {"$ref": "#/$defs/L"}}}}}},
+        "consensus": {"type": "object", "properties": {"low": {"$ref": "#/$defs/num"}, "mean": {"$ref": "#/$defs/num"}, "high": {"$ref": "#/$defs/num"},
+                                                        "buy": {"$ref": "#/$defs/num"}, "hold": {"$ref": "#/$defs/num"}, "sell": {"$ref": "#/$defs/num"}}},
+        "forecast_1m": {"type": "object", "required": ["scenarios", "expected_move_pct", "catalysts", "inputs"],
+          "properties": {
+            "scenarios": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "object", "required": ["name", "move_pct", "target", "probability_pct", "driver"],
+              "properties": {"name": {"enum": ["bear", "base", "bull"]}, "move_pct": {"type": "number"}, "target": {"type": "number"},
+                             "probability_pct": {"type": "number"}, "driver": {"$ref": "#/$defs/L"}}}},
+            "expected_move_pct": {"type": "number"},
+            "catalysts": {"type": "array", "items": {"type": "object", "required": ["date", "event"], "properties": {"date": {"type": "string"}, "event": {"$ref": "#/$defs/L"}}}},
+            "inputs": {"type": "object", "properties": {"rsi": {"$ref": "#/$defs/num"}, "vs_sma50_pct": {"$ref": "#/$defs/num"},
+                                                        "vs_sma200_pct": {"$ref": "#/$defs/num"}, "vol_30d_pct": {"$ref": "#/$defs/num"}}}}},
+        "manipulation": {"type": "object", "required": ["level", "total_points", "inputs"],
+          "properties": {"level": {"$ref": "#/$defs/LMH"}, "total_points": {"type": "number"},
+                         "inputs": {"type": "array", "minItems": 7, "items": {"type": "object", "required": ["input", "points"],
+                           "properties": {"input": {"$ref": "#/$defs/L"}, "value": {"type": ["number", "string", "null"]}, "points": {"type": "number"}}}}}},
+        "ceo": {"type": "object", "required": ["name", "score", "trust", "rows"],
+          "properties": {"name": {"type": "string"}, "since": {"type": ["string", "null"]}, "score": {"$ref": "#/$defs/score"}, "trust": {"$ref": "#/$defs/LMH"},
+                         "rows": {"type": "array", "minItems": 7, "items": {"type": "object", "required": ["criterion", "value", "points"],
+                           "properties": {"criterion": {"$ref": "#/$defs/L"}, "value": {"$ref": "#/$defs/L"}, "points": {"type": "number"}, "source": {"$ref": "#/$defs/src"}}}}}},
+        "world_exposure": {"type": "array", "items": {"type": "object", "required": ["theme", "channel", "direction", "risk", "horizon"],
+          "properties": {"theme": {"$ref": "#/$defs/L"}, "channel": {"$ref": "#/$defs/L"}, "direction": {"enum": ["+", "-"]},
+                         "risk": {"$ref": "#/$defs/LMH"}, "horizon": {"$ref": "#/$defs/horizon"}, "confidence": {"$ref": "#/$defs/LMH"}}}},
+        "news": {"type": "array", "items": {"type": "object", "required": ["date", "outlet", "headline", "url", "direction", "impact", "horizon", "priced_in"],
+          "properties": {"date": {"type": "string"}, "outlet": {"type": "string"}, "headline": {"type": "string"}, "url": {"type": "string"},
+                         "direction": {"enum": ["+", "-", "0"]}, "impact": {"$ref": "#/$defs/LMH"}, "horizon": {"$ref": "#/$defs/horizon"},
+                         "priced_in": {"enum": ["yes", "no", "partial"]}}}}
+      }
+    },
+    "sources": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["id", "title", "url"],
+      "properties": {"id": {"type": "string"}, "title": {"type": "string"}, "url": {"type": "string"}, "date": {"type": ["string", "null"]}}}}
+  }
+}
