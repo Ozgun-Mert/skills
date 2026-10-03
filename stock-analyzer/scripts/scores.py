@@ -18,13 +18,16 @@ SUBS = {
     "C3": {"revenue_growth": 0.25, "profit_growth_margins": 0.25, "earnings_quality": 0.20, "balance_sheet": 0.30},
     "C4a": {"multiples": 0.50, "fair_value_upside": 0.50},
     "C4b": {"expected_move_1m": 0.35, "news_risk": 0.30, "manipulation": 0.15, "ceo_trust": 0.20},
+    "C5": {"rating_mix": 0.40, "target_upside": 0.35, "revision_trend": 0.25},
 }
-NAMES = {"C1": "Business", "C2": "Competition", "C3": "Financials", "C4a": "Valuation", "C4b": "Momentum & Risk"}
+NAMES = {"C1": "Business", "C2": "Competition", "C3": "Financials", "C4a": "Valuation", "C4b": "Momentum & Risk",
+         "C5": "Bank consensus"}
 HORIZON = {
-    "short": {"C1": 0.05, "C2": 0.10, "C3": 0.15, "C4a": 0.20, "C4b": 0.50},
-    "medium": {"C1": 0.15, "C2": 0.20, "C3": 0.25, "C4a": 0.25, "C4b": 0.15},
-    "long": {"C1": 0.30, "C2": 0.25, "C3": 0.25, "C4a": 0.15, "C4b": 0.05},
+    "short": {"C1": 0.05, "C2": 0.10, "C3": 0.10, "C4a": 0.20, "C4b": 0.45, "C5": 0.10},
+    "medium": {"C1": 0.15, "C2": 0.15, "C3": 0.20, "C4a": 0.20, "C4b": 0.15, "C5": 0.15},
+    "long": {"C1": 0.30, "C2": 0.20, "C3": 0.25, "C4a": 0.10, "C4b": 0.05, "C5": 0.10},
 }
+assert all(abs(sum(w.values()) - 1) < 1e-9 for w in HORIZON.values()), "horizon weights must sum to 1"
 MANIPULATION_SUBSCORE = {"L": 10, "M": 5, "H": 1, "Low": 10, "Medium": 5, "High": 1}
 
 
@@ -49,6 +52,24 @@ def compute(subs: dict) -> dict:
     return {"components": comps, **finals}
 
 
+def c5_from_banks(b: dict) -> dict:
+    """Deterministic C5 sub-scores from banks.json summary (references/scoring.md).
+    The agent may override only with cited evidence (e.g. a press-verified bank row it added)."""
+    sm = b.get("summary", {})
+    n = sm.get("covered_total") or 0
+    if n < 2:
+        return {"rating_mix": 5.0, "target_upside": 5.0, "revision_trend": 5.0, "_insufficient": True}
+    buy, hold, sell = sm.get("buy", 0), sm.get("hold", 0), sm.get("sell", 0)
+    rated = buy + hold + sell or 1
+    mix = (buy * 10 + hold * 5 + sell * 0) / rated          # all Buy 10, all Hold 5, all Sell 0
+    up = sm.get("median_upside_pct")
+    # linear: -15% -> 0, 0% -> 5, +30% -> 10
+    tu = 5.0 if up is None else (max(0.0, 5 + up / 3) if up < 0 else min(10.0, 5 + up / 6))
+    r, l = sm.get("raises_window", 0), sm.get("lowers_window", 0)
+    rev = 5.0 if r + l == 0 else 10 * r / (r + l)
+    return {"rating_mix": r1(mix), "target_upside": r1(tu), "revision_trend": r1(rev), "_insufficient": False}
+
+
 def from_report(rep: dict) -> dict:
     comps = rep["scores"]["components"]
     return {c: {s["key"]: s["score"] for s in comps[c]["subs"]} for c in SUBS}
@@ -68,7 +89,12 @@ def main():
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--subs")
     g.add_argument("--report")
+    g.add_argument("--banks")
     a = ap.parse_args()
+    if a.banks:
+        with open(a.banks, encoding="utf-8") as f:
+            print(json.dumps(c5_from_banks(json.load(f))))
+        return
     if a.subs:
         with open(a.subs, encoding="utf-8") as f:
             subs = json.load(f)

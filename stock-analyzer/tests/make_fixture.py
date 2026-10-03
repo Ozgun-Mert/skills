@@ -15,7 +15,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
-from scores import SUBS, compute  # noqa: E402
+from scores import SUBS, c5_from_banks, compute  # noqa: E402
 
 
 def Lx(en, tr=None):
@@ -29,6 +29,7 @@ def load(d, f):
 
 def build(tick_dir: str) -> dict:
     p, fin, mul, news, risk = (load(tick_dir, f) for f in ("price.json", "financials.json", "multiples.json", "news.json", "risk.json"))
+    banks = load(tick_dir, "banks.json") if os.path.exists(os.path.join(tick_dir, "banks.json")) else {"banks": [], "local_candidates": [], "summary": {}}
     q, cur = p["quote"], fin.get("currency") or p["quote"].get("currency")
     tv = p["tv_symbol"]
     ticker = tv.split(":")[1]
@@ -51,6 +52,11 @@ def build(tick_dir: str) -> dict:
     tot = sum(i["points"] for i in inputs)
     lvl = "L" if tot <= 5 else "M" if tot <= 11 else "H"
     subs["C4b"]["manipulation"] = {"L": 10, "M": 5, "H": 1}[lvl]
+    s5 = build_s5(banks, p)
+    c5 = c5_from_banks({"summary": {"covered_total": sum(r["covered"] for r in s5["rows"]), **{k: s5["consensus"][k] for k in ("buy", "hold", "sell")},
+                                    "median_upside_pct": s5["consensus"]["median_upside_pct"], "raises_window": s5["consensus"]["raises"],
+                                    "lowers_window": s5["consensus"]["lowers"]}})
+    subs["C5"] = {k: c5[k] for k in SUBS["C5"]}
     res = compute({c: dict(v) for c, v in subs.items()})
     comps = {c: {"score": res["components"][c], "subs": [{"key": k, "label": {"en": k.replace("_", " "), "tr": k.replace("_", " ")},
                                                           "weight": w, "score": subs[c][k], "note": Lx("sub-score rationale")} for k, w in SUBS[c].items()]}
@@ -81,7 +87,7 @@ def build(tick_dir: str) -> dict:
                      "net_margin_pct": ann[0].get("net_margin_pct") if ann else None},
         "price_series": p["series"],
         "scores": {"short": res["short"], "medium": res["medium"], "long": res["long"], "components": comps},
-        "tags": {"manipulation": lvl, "ceo_trust": "M", "news_risk": "M"},
+        "tags": {"manipulation": lvl, "ceo_trust": "M", "news_risk": "M", "bank_view": s5["summary_tag"]},
         "s1": {"summary_today": Lx("what the company does today"), "summary_future": Lx("future plans"), "summary_futureproof": Lx("future-proof view"),
                "segments": [{"name": Lx("Segment A"), "revenue": rev * 0.6 if rev else None, "pct": 60, "yoy_pct": 5, "op_margin_pct": 20, "products": Lx("products"), "source": "s1"},
                             {"name": Lx("Segment B"), "revenue": rev * 0.4 if rev else None, "pct": 40, "yoy_pct": -2, "op_margin_pct": 12, "products": Lx("products"), "source": "s1"}],
@@ -116,8 +122,47 @@ def build(tick_dir: str) -> dict:
                "world_exposure": [{"theme": Lx("theme"), "channel": Lx("channel"), "direction": "-", "risk": "M", "horizon": "short", "confidence": "M"}],
                "news": [{"date": n["date"], "outlet": n["outlet"], "headline": n["headline"], "url": n["url"], "direction": "0", "impact": "L", "horizon": "short", "priced_in": "partial"}
                         for n in news["items"][:6]]},
+        "s5": s5,
         "sources": [{"id": "s1", "title": "[fixture] source", "url": "https://www.tradingview.com/", "date": p["fetched_at"][:10]}],
     }
+
+
+def build_s5(banks: dict, p: dict) -> dict:
+    """Section 5 from banks.json; topics are placeholders. Local rows: only covered ones (max 3)."""
+    import statistics
+    cand = [r for r in banks.get("local_candidates", []) if r.get("covered") and r.get("rating")][:3]
+    rows = []
+    for r in banks.get("banks", []) + cand:
+        cov = bool(r.get("covered"))
+        arts = r.get("coverage_articles", [])
+        rep = cov and bool(arts)
+        rows.append({
+            "bank": r["bank"], "role": r["role"], "covered": cov, "rating_raw": r.get("rating_raw") if cov else None,
+            "rating": r.get("rating") if cov else None, "target": r.get("target") if cov else None,
+            "target_currency": r.get("target_currency") if cov else None, "target_listing": r.get("target_listing") if cov else None,
+            "target_report_ccy": r.get("target_report_ccy") if cov else None, "upside_pct": r.get("upside_pct") if cov else None,
+            "date": r.get("date") if cov else None,
+            "action": ({"en": f"{r.get('action')} PT {r.get('prior_target')}→{r.get('target')}", "tr": f"{r.get('action')} HF {r.get('prior_target')}→{r.get('target')}"}
+                       if cov and r.get("action") else None),
+            "rating_source": ("broker_page" if r["role"] == "local" else "yahoo") if cov else None,
+            "important": [Lx("thesis driver from note")] if rep else [], "niche": [Lx("specific datapoint from note")] if rep else [],
+            "topics_status": "reported" if rep else ("not_reported" if cov else "no_coverage"),
+            "topic_sources": [a["url"] for a in arts[:2]] if rep else [],
+            "history": [{"date": h["date"], "rating": h.get("rating"), "target": h.get("target")} for h in r.get("history", [])] if cov else [],
+            "source": (r.get("source") or {}).get("url") if cov else None,
+        })
+    cov = [r for r in rows if r["covered"]]
+    ups = [r["upside_pct"] for r in cov if r["upside_pct"] is not None]
+    tg = [r["target_report_ccy"] for r in cov if r["target_report_ccy"] is not None]
+    cons = {"buy": sum(r["rating"] == "Buy" for r in cov), "hold": sum(r["rating"] == "Hold" for r in cov),
+            "sell": sum(r["rating"] == "Sell" for r in cov), "covered_fixed": sum(r["covered"] for r in rows if r["role"] == "fixed"),
+            "median_target": round(statistics.median(tg), 2) if tg else None,
+            "median_upside_pct": round(statistics.median(ups), 2) if ups else None,
+            "raises": banks.get("summary", {}).get("raises_window", 0), "lowers": banks.get("summary", {}).get("lowers_window", 0)}
+    tag = ("Insufficient" if len(cov) < 2 else "Buy-majority" if cons["buy"] > len(cov) / 2
+           else "Sell-majority" if cons["sell"] > len(cov) / 2 else "Mixed")
+    return {"window_days": banks.get("window_days", 180), "price_currency": banks.get("price_currency") or p["quote"].get("currency"),
+            "rows": rows, "consensus": cons, "summary_tag": tag}
 
 
 def main():

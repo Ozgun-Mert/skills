@@ -215,7 +215,13 @@ const UI = {
     shortH: "≤3 mo", mediumH: "6–12 mo", longH: "1–3 yr", disclaimer: "Not investment advice.", generated: "Generated",
     Innovative: "Innovative", Transitional: "Transitional", Traditional: "Traditional", announced: "announced", development: "in development", shipping: "shipping",
     up: "▲ up", down: "▼ down", flat: "■ flat", severity: "Severity", sectors: "Sectors affected", escalating: "escalating", stable: "stable", "de-escalating": "de-escalating",
-    capNote: "Showing the 8 largest by market cap.", cheap: "cheap", fair: "fair", rich: "rich", "n/a": "n/a", others: "Others", usdNote: "USD-translated where available" },
+    capNote: "Showing the 8 largest by market cap.", cheap: "cheap", fair: "fair", rich: "rich", "n/a": "n/a", others: "Others", usdNote: "USD-translated where available",
+    s5: "Banks", s5T: "Bank research", s5Window: "last {d} days", bank: "Bank", role: "Role", fixed: "fixed", substitute: "substitute", local: "local broker",
+    ratingCol: "Rating", important: "Important topics", niche: "Niche topics", noCov: "No coverage", notReported: "Not reported publicly",
+    banksCol: "Banks", bankView: "Bank view", "Buy-majority": "Buy-majority", Mixed: "Mixed", "Sell-majority": "Sell-majority", Insufficient: "Insufficient",
+    Buy: "Buy", Hold: "Hold", Sell: "Sell", medTarget: "Median target", medUpside: "Median upside", revisions: "Raises / cuts", coveredFixed: "Big-4 covering",
+    upsideByBank: "Target upside by bank", ptHistory: "Price-target history", bankUpsideCmp: "Median bank target upside", sameCcyNote: "each vs its own listing",
+    adrNote: "target for US listing", action: "Action" },
   tr: { stocks: "Analiz edilen hisse", best: "En iyi", avgManip: "Ort. manipülasyon riski", data: "Veri tarihi", search: "Ara", sector: "Sektör",
     country: "Ülke", cls: "Sınıf", manip: "Manipülasyon", minScore: "Min puan", mcap: "Piy. değeri (USD)", all: "Tümü", reset: "Sıfırla",
     short: "Kısa", medium: "Orta", long: "Uzun", horizon: "Vade", ticker: "Kod", name: "Şirket", price: "Fiyat", m1: "1A %",
@@ -250,13 +256,19 @@ const UI = {
     shortH: "≤3 ay", mediumH: "6–12 ay", longH: "1–3 yıl", disclaimer: "Yatırım tavsiyesi değildir.", generated: "Oluşturuldu",
     Innovative: "Yenilikçi", Transitional: "Dönüşümde", Traditional: "Geleneksel", announced: "duyuruldu", development: "geliştiriliyor", shipping: "satışta",
     up: "▲ artış", down: "▼ düşüş", flat: "■ yatay", severity: "Şiddet", sectors: "Etkilenen sektörler", escalating: "tırmanıyor", stable: "stabil", "de-escalating": "yatışıyor",
-    capNote: "Piyasa değerine göre en büyük 8 hisse gösteriliyor.", cheap: "ucuz", fair: "makul", rich: "pahalı", "n/a": "yok", others: "Diğer", usdNote: "Mümkünse USD'ye çevrilmiş" }
+    capNote: "Piyasa değerine göre en büyük 8 hisse gösteriliyor.", cheap: "ucuz", fair: "makul", rich: "pahalı", "n/a": "yok", others: "Diğer", usdNote: "Mümkünse USD'ye çevrilmiş",
+    s5: "Bankalar", s5T: "Banka raporları", s5Window: "son {d} gün", bank: "Banka", role: "Rol", fixed: "sabit", substitute: "yedek", local: "yerel aracı kurum",
+    ratingCol: "Tavsiye", important: "Önemli konular", niche: "Niş konular", noCov: "Kapsam yok", notReported: "Basında yer almadı",
+    banksCol: "Bankalar", bankView: "Banka görüşü", "Buy-majority": "Çoğunluk Al", Mixed: "Karışık", "Sell-majority": "Çoğunluk Sat", Insufficient: "Yetersiz",
+    Buy: "Al", Hold: "Tut", Sell: "Sat", medTarget: "Medyan hedef", medUpside: "Medyan potansiyel", revisions: "Artırım / indirim", coveredFixed: "Büyük 4 kapsamı",
+    upsideByBank: "Bankaya göre hedef potansiyeli", ptHistory: "Hedef fiyat geçmişi", bankUpsideCmp: "Medyan banka hedef potansiyeli", sameCcyNote: "her biri kendi kotasyonuna göre",
+    adrNote: "ABD kotasyonu hedefi", action: "İşlem" }
 };
 
 const store = { get(k, d) { try { const v = localStorage.getItem("sa:" + k); return v === null ? d : v; } catch (e) { return d; } },
                 set(k, v) { try { localStorage.setItem("sa:" + k, v); } catch (e) {} } };
 const S = { lang: store.get("lang", "en"), horizon: store.get("horizon", "medium"), sort: { key: "score", dir: -1 },
-            f: { q: "", sector: "", country: "", cls: "", manip: new Set(), min: 0, mcap: 0 } };
+            f: { q: "", sector: "", country: "", cls: "", manip: new Set(), bank: new Set(), min: 0, mcap: 0 } };
 const t = k => (UI[S.lang] && UI[S.lang][k]) || UI.en[k] || k;
 const L = o => o == null ? "" : typeof o === "string" ? o : (o[S.lang] || o.en || "");
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -345,6 +357,7 @@ function filtered() {
   return stocks.filter(s => (!q || (s.meta.ticker + " " + s.meta.name).toLowerCase().includes(q))
     && (!f.sector || s.meta.sector === f.sector) && (!f.country || s.meta.country === f.country)
     && (!f.cls || s.meta.classification === f.cls) && (!f.manip.size || f.manip.has(s.tags.manipulation))
+    && (!f.bank.size || f.bank.has(s.s5.summary_tag))
     && score(s) >= f.min && ((s.snapshot.market_cap_usd || 0) >= f.mcap));
 }
 const COLS = [
@@ -365,6 +378,8 @@ const COLS = [
   { k: "manip", h: "manip", v: s => "LMH".indexOf(s.tags.manipulation), r: s => `<td>${chip(s.tags.manipulation)}</td>` },
   { k: "ceo", h: "ceo", v: s => "LMH".indexOf(s.tags.ceo_trust), r: s => `<td>${chip(s.tags.ceo_trust, "trust")}</td>` },
   { k: "news", h: "news", v: s => "LMH".indexOf(s.tags.news_risk), r: s => `<td>${chip(s.tags.news_risk)}</td>` },
+  { k: "banks", h: "banksCol", num: 1, v: s => s.s5.consensus.median_upside_pct, r: s => { const c = s.s5.consensus;
+      return `<td class="num" title="${esc(t(s.s5.summary_tag))}">${c.buy}B·${c.hold}H·${c.sell}S <span class="${c.median_upside_pct > 0 ? "pos" : c.median_upside_pct < 0 ? "neg" : "muted"}">${pct(c.median_upside_pct, true, 0)}</span></td>`; } },
   { k: "cls", h: "cls", v: s => s.meta.classification, r: s => `<td><span class="chip tag">${esc(t(s.meta.classification))}</span></td>` },
 ];
 
@@ -393,6 +408,7 @@ function renderMain() {
     <label for="f-cls">${t("cls")}<select id="f-cls">${opts(stocks.map(s => s.meta.classification), S.f.cls)}</select></label>
     <label for="f-mcap">${t("mcap")}<select id="f-mcap">${[[0, t("all")], [2e9, "≥ 2B"], [10e9, "≥ 10B"], [50e9, "≥ 50B"], [200e9, "≥ 200B"]].map(([v, l]) => `<option value="${v}"${+S.f.mcap === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
     <label for="f-min">${t("minScore")} · ${t(S.horizon)} <span class="mono">${num(S.f.min, 1)}</span><input type="range" id="f-min" min="0" max="10" step="0.5" value="${S.f.min}"></label>
+    <div style="display:grid;gap:3px"><span class="eyebrow">${t("bankView")}</span><div class="chipset" id="f-bank">${["Buy-majority", "Mixed", "Sell-majority", "Insufficient"].map(l => `<button type="button" data-v="${l}" aria-pressed="${S.f.bank.has(l)}">${t(l)}</button>`).join("")}</div></div>
     <div style="display:grid;gap:3px"><span class="eyebrow">${t("manip")}</span><div class="chipset" id="f-manip">${["L", "M", "H"].map(l => `<button type="button" data-v="${l}" aria-pressed="${S.f.manip.has(l)}">${t(l)}</button>`).join("")}</div></div>
     <button type="button" class="btn" id="f-reset">${t("reset")}</button>
   </form>
@@ -405,11 +421,14 @@ function renderMain() {
     <div class="panel"><header><h3>${t("peVsGrowth")}</h3><span class="note">x: ${t("cagr")} · y: ${t("pe")}</span></header><div class="chartbox"><canvas id="c-scatter"></canvas></div></div>
     <div class="panel"><header><h3>${t("revIndexed")}</h3><span class="note" id="cap-note">${t("usdNote")}</span></header><div class="chartbox"><canvas id="c-index"></canvas></div></div>
     <div class="panel"><header><h3>${t("margins")}</h3></header><div class="chartbox"><canvas id="c-margins"></canvas></div></div>
+    <div class="panel"><header><h3>${t("bankUpsideCmp")}</h3><span class="note">% · ${t("Insufficient")} = grey</span></header><div class="chartbox"><canvas id="c-banks"></canvas></div></div>
+    <div class="panel"><header><h3>${t("bankView")}</h3></header>${tbl([t("ticker"), t("bankView"), N(t("coveredFixed")), N(t("Buy")), N(t("Hold")), N(t("Sell")), N(t("revisions"))],
+      list.map(s => { const c = s.s5.consensus; return `<tr><td><span class="tick">${esc(s.meta.ticker)}</span></td><td>${bankTagChip(s.s5.summary_tag)}</td><td class="num">${c.covered_fixed}/4</td><td class="num">${c.buy}</td><td class="num">${c.hold}</td><td class="num">${c.sell}</td><td class="num">${c.raises} / ${c.lowers}</td></tr>`; }))}</div>
     <div class="panel"><header><h3>${t("riskMap")}</h3></header>${tbl([t("ticker"), t("manip"), t("ceo"), t("news"), t("worldT").replace(/^4e · /, "")],
       list.map(s => { const w = s.s4.world_exposure || []; const wr = w.some(x => x.risk === "H") ? "H" : w.some(x => x.risk === "M") ? "M" : w.length ? "L" : null;
         return `<tr><td><span class="tick">${esc(s.meta.ticker)}</span></td><td>${chip(s.tags.manipulation)}</td><td>${chip(s.tags.ceo_trust, "trust")}</td><td>${chip(s.tags.news_risk)}</td><td>${chip(wr)}</td></tr>`; }), "heat")}</div>
-    <div class="panel"><header><h3>${t("compHeat")}</h3><span class="note">C1–C4b · 0–10</span></header>${tbl([t("ticker"), "C1 " + t("s1"), "C2 " + t("s2"), "C3 " + t("s3"), "C4a " + t("valuation").replace(/^4a · /, ""), "C4b " + t("risk")],
-      list.map(s => `<tr><td><span class="tick">${esc(s.meta.ticker)}</span></td>${["C1", "C2", "C3", "C4a", "C4b"].map(c => heatCell(s.scores.components[c].score)).join("")}</tr>`), "heat")}</div>
+    <div class="panel"><header><h3>${t("compHeat")}</h3><span class="note">C1–C5 · 0–10</span></header>${tbl([t("ticker"), "C1 " + t("s1"), "C2 " + t("s2"), "C3 " + t("s3"), "C4a " + t("valuation").replace(/^4a · /, ""), "C4b " + t("risk"), "C5 " + t("s5")],
+      list.map(s => `<tr><td><span class="tick">${esc(s.meta.ticker)}</span></td>${["C1", "C2", "C3", "C4a", "C4b", "C5"].map(c => heatCell(s.scores.components[c].score)).join("")}</tr>`), "heat")}</div>
   </div>
   ${worldPanel()}
   ${footer()}`;
@@ -438,7 +457,8 @@ function bindMain() {
   document.getElementById("f-mcap").addEventListener("change", e => { S.f.mcap = +e.target.value; rerender(); });
   keepFocus("f-min", v => S.f.min = +v);
   document.querySelectorAll("#f-manip button").forEach(b => b.addEventListener("click", () => { const v = b.dataset.v; S.f.manip.has(v) ? S.f.manip.delete(v) : S.f.manip.add(v); rerender(); }));
-  document.getElementById("f-reset").addEventListener("click", () => { S.f = { q: "", sector: "", country: "", cls: "", manip: new Set(), min: 0, mcap: 0 }; rerender(); });
+  document.querySelectorAll("#f-bank button").forEach(b => b.addEventListener("click", () => { const v = b.dataset.v; S.f.bank.has(v) ? S.f.bank.delete(v) : S.f.bank.add(v); rerender(); }));
+  document.getElementById("f-reset").addEventListener("click", () => { S.f = { q: "", sector: "", country: "", cls: "", manip: new Set(), bank: new Set(), min: 0, mcap: 0 }; rerender(); });
   document.querySelectorAll("#main-table th.sortable").forEach(th => { const go = () => { const k = th.dataset.k; const cur = S.sort.key === "score" ? S.horizon : S.sort.key; S.sort = { key: k, dir: cur === k ? -S.sort.dir : -1 }; rerender(); };
     th.addEventListener("click", go); th.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } }); });
   document.querySelectorAll("#main-table tr.click").forEach(tr => { const go = () => openStock(tr.dataset.t); tr.addEventListener("click", go); tr.addEventListener("keydown", e => { if (e.key === "Enter") go(); }); });
@@ -462,6 +482,10 @@ function drawMainCharts(list) {
       const b0 = ys.find(y => y.v)?.v;
       return lineDs(s.meta.ticker, years.map(fy => { const r = ys.find(y => y.fy === fy); return r && b0 ? +(r.v / b0 * 100).toFixed(1) : null; }), ser[colorIdx.get(s.meta.ticker)], { pointRadius: 3 });
     }) }, options: baseOpts() });
+  mk("c-banks", { type: "bar", data: { labels: tick, datasets: [Object.assign(barDs(t("medUpside"), list.map(s => s.s5.consensus.median_upside_pct), ser[0]),
+      { backgroundColor: list.map(s => s.s5.summary_tag === "Insufficient" ? css("--fg-3") : (s.s5.consensus.median_upside_pct || 0) < 0 ? css("--s8") : css("--s1")) })] },
+    options: baseOpts({ plugins: Object.assign(baseOpts().plugins, { legend: { display: false } }),
+      scales: Object.assign(baseOpts().scales, { y: Object.assign(baseOpts().scales.y, { ticks: Object.assign(baseOpts().scales.y.ticks, { callback: v => v + "%" }) }) }) }) });
   mk("c-margins", { type: "bar", data: { labels: tick, datasets: [["gross_margin_pct", "gross"], ["op_margin_pct", "op"], ["net_margin_pct", "net"]].map(([k, l], i) =>
       barDs(t(l), list.map(s => { const y = s.s3.years.filter(y => !y.ttm)[0]; return y ? y[k] : null; }), ser[i])) },
     options: baseOpts({ scales: Object.assign(baseOpts().scales, { y: Object.assign(baseOpts().scales.y, { ticks: Object.assign(baseOpts().scales.y.ticks, { callback: v => v + "%" }) }) }) }) });
@@ -488,7 +512,7 @@ function renderDetail(s) {
     </div>
     <div class="scores3">${["short", "medium", "long"].map(h => `<div><span class="eyebrow">${t(h)} · ${t(h + "H")}</span><span class="big">${num(s.scores[h], 1)}<small>/10</small></span><span class="meter"><b style="width:${s.scores[h] * 10}%"></b></span></div>`).join("")}</div>
   </section>
-  <nav class="rail" aria-label="Sections">${[["overview", "overview"], ["sec1", "s1"], ["sec2", "s2"], ["sec3", "s3"], ["sec4", "s4"], ["secS", "sc"], ["secSrc", "src"]].map(([a, k]) => `<a href="#${a}" data-jump="${a}">${t(k)}</a>`).join("")}</nav>
+  <nav class="rail" aria-label="Sections">${[["overview", "overview"], ["sec1", "s1"], ["sec2", "s2"], ["sec3", "s3"], ["sec4", "s4"], ["sec5", "s5"], ["secS", "sc"], ["secSrc", "src"]].map(([a, k]) => `<a href="#${a}" data-jump="${a}">${t(k)}</a>`).join("")}</nav>
   <div class="grid2" style="margin-top:16px">
     <div class="panel"><header><h3>${t("priceChart")}</h3><span class="note">${esc(cur)}</span></header><div class="chartbox"><canvas id="d-price"></canvas></div></div>
     <div class="panel">${kvs([[t("mcap").replace(" (USD)", ""), big(sn.market_cap, cur)], ["USD", big(sn.market_cap_usd, "$")], ["EV", big(sn.ev, cur)], ["52w", `${num(sn.low_52w, 2)}–${num(sn.high_52w, 2)}`],
@@ -558,10 +582,11 @@ function renderDetail(s) {
     <div class="sub"><h3>${t("newsT")}</h3>${tbl([t("date"), t("outlet"), t("headline"), t("dir"), t("impact"), t("hz"), t("pricedIn")], s4.news.map(n => `<tr><td class="mono">${esc(n.date)}</td><td class="mono">${esc(n.outlet)}</td><td><a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.headline)}</a></td><td class="mono">${dirSpan(n.direction)}</td><td>${sev(n.impact)}</td><td class="mono">${esc(t(n.horizon))}</td><td class="mono">${esc(t(n.priced_in))}</td></tr>`))}</div>
   </section>
 
-  <section class="section" id="secS"><h2><span class="eyebrow">05</span>${t("scoreT")}</h2>
+  ${bankSection(s)}
+  <section class="section" id="secS"><h2><span class="eyebrow">06</span>${t("scoreT")}</h2>
     ${tbl([t("component"), t("sub"), N(t("weightIn")), N(t("sc")), N(t("short")), N(t("medium")), N(t("long"))], scoreRows(s))}
   </section>
-  <section class="section" id="secSrc"><h2><span class="eyebrow">06</span>${t("src")}</h2>
+  <section class="section" id="secSrc"><h2><span class="eyebrow">07</span>${t("src")}</h2>
     ${tbl(["#", t("headline"), t("date")], s.sources.map(x => `<tr><td class="mono">${esc(x.id)}</td><td><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a></td><td class="mono">${esc(x.date || "")}</td></tr>`))}
   </section>
   ${footer()}`;
@@ -569,11 +594,45 @@ function renderDetail(s) {
   drawDetailCharts(s);
 }
 function chipCls(level, kind = "risk") { const good = kind === "trust" ? "H" : "L", bad = kind === "trust" ? "L" : "H"; return level === good ? "good" : level === bad ? "critical" : "warning"; }
-const HW = { short: { C1: 5, C2: 10, C3: 15, C4a: 20, C4b: 50 }, medium: { C1: 15, C2: 20, C3: 25, C4a: 25, C4b: 15 }, long: { C1: 30, C2: 25, C3: 25, C4a: 15, C4b: 5 } };
+function ratingChip(r) {
+  if (!r) return '<span class="muted">–</span>';
+  const cls = r === "Buy" ? "good" : r === "Sell" ? "critical" : "warning";
+  return `<span class="chip ${cls}"><i aria-hidden="true"></i>${esc(t(r))}</span>`;
+}
+function bankTagChip(tag) {
+  const cls = tag === "Buy-majority" ? "good" : tag === "Sell-majority" ? "critical" : tag === "Mixed" ? "warning" : "";
+  return cls ? `<span class="chip ${cls}"><i aria-hidden="true"></i>${esc(t(tag))}</span>` : `<span class="chip">${esc(t(tag))}</span>`;
+}
+function srcLinkN(stock, u, n) {
+  if (/^https?:/.test(u)) return `<a href="${esc(u)}" target="_blank" rel="noopener" title="${esc(u)}">[${n}]</a>`;
+  return srcLink(stock, u);
+}
+function bankSection(s) {
+  const s5 = s.s5, c = s5.consensus, cur = s.meta.currency, win = t("s5Window").replace("{d}", s5.window_days);
+  const topics = (arr, st) => st === "no_coverage" ? '<span class="muted">–</span>' : st === "not_reported" ? `<span class="muted">${t("notReported")}</span>`
+    : arr.map(x => esc(L(x))).join("<br>");
+  const rows = s5.rows.map(r => r.covered ? `<tr><td><b>${esc(r.bank)}</b></td><td><span class="chip">${esc(t(r.role))}</span></td>
+      <td style="white-space:nowrap">${esc(r.rating_raw || "")} → ${ratingChip(r.rating)}</td>
+      <td class="num">${num(r.target, 2)} <span class="muted">${esc(r.target_currency || cur)}</span>${r.target_currency && r.target_currency !== cur ? `<br><span class="note">${t("adrNote")} ${esc(r.target_listing || "")} · ≈ ${num(r.target_report_ccy, 2)} ${esc(cur)}</span>` : ""}</td>
+      ${pctCell(r.upside_pct)}<td class="mono" style="white-space:nowrap">${esc(r.date || "")}</td><td class="mono">${esc(L(r.action) || "–")}</td>
+      <td style="min-width:180px">${topics(r.important, r.topics_status)}</td><td class="muted" style="min-width:180px">${topics(r.niche, r.topics_status)}</td>
+      <td>${srcLink(s, r.source)}${(r.topic_sources || []).map((u, i) => " " + srcLinkN(s, u, i + 1)).join("")}</td></tr>`
+    : `<tr class="unavail"><td><b>${esc(r.bank)}</b></td><td><span class="chip">${esc(t(r.role))}</span></td><td colspan="8">${t("noCov")} · ${esc(win)}</td></tr>`);
+  const kv = [[t("bankView"), bankTagChip(s5.summary_tag)], [t("coveredFixed"), `${c.covered_fixed}/4`], [t("Buy"), c.buy], [t("Hold"), c.hold], [t("Sell"), c.sell],
+    [t("medTarget"), `${num(c.median_target, 2)} ${esc(cur)}`], [t("medUpside"), `<span class="${c.median_upside_pct >= 0 ? "pos" : "neg"}">${pct(c.median_upside_pct)}</span>`], [t("revisions"), `${c.raises} / ${c.lowers}`]];
+  const histCur = (s5.rows.find(r => r.covered && r.target_currency) || {}).target_currency || cur;
+  return `<section class="section" id="sec5"><h2><span class="eyebrow">05</span>${t("s5T")} <span class="note">${esc(win)}</span></h2>
+    <dl class="kv">${kv.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join("")}</dl>
+    ${tbl([t("bank"), t("role"), t("ratingCol"), N(t("tgt")), N(t("upside")), t("date"), t("action"), t("important"), t("niche"), ""], rows)}
+    <div class="grid2"><div class="panel"><header><h3>${t("upsideByBank")}</h3><span class="note">${t("sameCcyNote")}</span></header><div class="chartbox short"><canvas id="d-bank-up"></canvas></div></div>
+      <div class="panel"><header><h3>${t("ptHistory")}</h3><span class="note">${esc(histCur)}</span></header><div class="chartbox short"><canvas id="d-bank-hist"></canvas></div></div></div>
+  </section>`;
+}
+const HW = { short: { C1: 5, C2: 10, C3: 10, C4a: 20, C4b: 45, C5: 10 }, medium: { C1: 15, C2: 15, C3: 20, C4a: 20, C4b: 15, C5: 15 }, long: { C1: 30, C2: 20, C3: 25, C4a: 10, C4b: 5, C5: 10 } };
 function scoreRows(s) {
-  const names = { C1: t("s1"), C2: t("s2"), C3: t("s3"), C4a: t("valuation").replace(/^4a · /, ""), C4b: t("risk") };
+  const names = { C1: t("s1"), C2: t("s2"), C3: t("s3"), C4a: t("valuation").replace(/^4a · /, ""), C4b: t("risk"), C5: t("s5T") };
   const rows = [];
-  ["C1", "C2", "C3", "C4a", "C4b"].forEach(c => {
+  ["C1", "C2", "C3", "C4a", "C4b", "C5"].forEach(c => {
     const comp = s.scores.components[c];
     rows.push(`<tr class="subject"><td>${c} ${esc(names[c])}</td><td></td><td></td><td class="num">${num(comp.score, 1)}</td>${["short", "medium", "long"].map(h => `<td class="num">${HW[h][c]}%</td>`).join("")}</tr>`);
     comp.subs.forEach(x => rows.push(`<tr><td></td><td>${esc(L(x.label))}${x.note ? ` <span class="note">· ${esc(L(x.note))}</span>` : ""}</td><td class="num">${num(x.weight * 100, 0)}%</td><td class="num">${num(x.score, 1)}</td><td></td><td></td><td></td></tr>`));
@@ -598,6 +657,17 @@ function drawDetailCharts(s) {
   const mu = s.s4.multiples.filter(x => x.current != null);
   mk("d-mult", { type: "bar", data: { labels: mu.map(x => x.name), datasets: [barDs(t("current"), mu.map(x => x.current), ser[0]), barDs(t("avg5"), mu.map(x => x.avg_5y), ser[1]), barDs(t("peerMed"), mu.map(x => x.peer_median), ser[2])] },
     options: baseOpts({ indexAxis: "y", scales: baseOpts().scales }) });
+  const br = s.s5.rows.filter(r => r.covered && r.upside_pct != null);
+  mk("d-bank-up", { type: "bar", data: { labels: br.map(r => r.bank), datasets: [{ label: t("upside"), data: br.map(r => r.upside_pct),
+      backgroundColor: br.map(r => r.upside_pct < 0 ? css("--s8") : css("--s1")), borderRadius: 4, borderSkipped: "start", maxBarThickness: 22 }] },
+    options: baseOpts({ indexAxis: "y", plugins: Object.assign(baseOpts().plugins, { legend: { display: false } }),
+      scales: { x: Object.assign(baseOpts().scales.x, { ticks: Object.assign(baseOpts().scales.x.ticks, { callback: v => v + "%" }) }), y: baseOpts().scales.y } }) });
+  const hb = s.s5.rows.filter(r => r.covered && (r.history || []).some(h => h.target != null)).slice(0, 8);
+  const dayFmt = v => new Date(v).toISOString().slice(0, 10);
+  mk("d-bank-hist", { type: "line", data: { datasets: hb.map((r, i) => lineDs(r.bank, r.history.filter(h => h.target != null)
+      .map(h => ({ x: Date.parse(h.date), y: h.target })).sort((a, b) => a.x - b.x), SERIES()[i], { pointRadius: 3, stepped: "before" })) },
+    options: baseOpts({ plugins: Object.assign(baseOpts().plugins, { tooltip: Object.assign(baseOpts().plugins.tooltip, { callbacks: { title: c => dayFmt(c[0].parsed.x) } }) }),
+      scales: { x: Object.assign(baseOpts().scales.x, { type: "linear", ticks: Object.assign(baseOpts().scales.x.ticks, { maxTicksLimit: 5, callback: v => dayFmt(v) }) }), y: baseOpts().scales.y } }) });
   const sc = ["bear", "base", "bull"].map(n => s.s4.forecast_1m.scenarios.find(x => x.name === n)).filter(Boolean);
   mk("d-scen", { type: "bar", data: { labels: sc.map(x => `${t(x.name)} · ${num(x.probability_pct, 0)}%`), datasets: [{ label: t("move"), data: sc.map(x => x.move_pct),
       backgroundColor: sc.map(x => x.move_pct < 0 ? css("--s8") : x.move_pct > 0 ? css("--s1") : css("--fg-3")), borderRadius: 4, borderSkipped: "start", maxBarThickness: 26 }] },
@@ -611,6 +681,7 @@ function openStock(tick) { current = tick; try { history.replaceState(null, "", 
 function goMain() { current = null; try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {} render(); }
 function render() {
   document.documentElement.lang = S.lang;
+  if (window.Chart) Chart.defaults.locale = S.lang === "tr" ? "tr-TR" : "en-US";
   document.querySelectorAll("[data-lang]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lang === S.lang)));
   const hs = document.getElementById("horizonSeg");
   hs.innerHTML = ["short", "medium", "long"].map(h => `<button type="button" id="hz-${h}" aria-pressed="${S.horizon === h}" title="${t(h + "H")}">${t(h)}</button>`).join("");

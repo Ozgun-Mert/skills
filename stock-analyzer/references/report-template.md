@@ -10,9 +10,9 @@ Keep section numbers. Tables over prose — see `rules.md` §2.
 |---|---|---|---|---|---|---|
 | ‹292.00› | ‹+1.9%› | ‹403.0B› | ‹1.02T› | ‹Transportation› | ‹TRY› | ‹2026-10-03 17:05 UTC› |
 
-| Short (≤3 mo) | Medium (6–12 mo) | Long (1–3 yr) | Manipulation | CEO trust | News risk | Class |
-|---|---|---|---|---|---|---|
-| **‹6.1›/10** | **‹6.3›/10** | **‹6.6›/10** | ‹M› | ‹M› | ‹M› | ‹Transitional› |
+| Short (≤3 mo) | Medium (6–12 mo) | Long (1–3 yr) | Manipulation | CEO trust | News risk | Bank view | Class |
+|---|---|---|---|---|---|---|---|
+| **‹6.1›/10** | **‹6.3›/10** | **‹6.6›/10** | ‹M› | ‹M› | ‹M› | ‹3B·1H·0S› | ‹Transitional› |
 
 ## 1. What the company does
 ### 1a. Today
@@ -150,7 +150,35 @@ xychart-beta
 | Date | Outlet | Headline | Dir. | Impact | Horizon | Priced in |
 |---|---|---|---|---|---|---|
 
-## 5. Score
+## 5. Bank research (180 days)
+| Bank | Role | Rating (orig → B/H/S) | Target | Upside | Date | Action | Important topics | Niche topics | Src |
+|---|---|---|---|---|---|---|---|---|---|
+| JPMorgan | fixed | ‹Overweight› → **‹Buy›** | ‹320 USD› | ‹+36.8%› | ‹2026-08-27› | ‹▲ PT 280→320› | ‹…; …› | ‹…› | ‹s12› |
+| Bank of America | fixed | ‹…› |
+| Morgan Stanley | fixed | ‹…› |
+| Goldman Sachs | fixed | No coverage (180d) | – | – | – | – | – | – | – |
+| ‹Citi› | substitute | ‹…› |
+| ‹İş Yatırım› | local | ‹AL → Buy› | ‹455 TRY› | … | ← BIST only |
+
+- Uncovered fixed bank: keep the row, write `No coverage (180d)`.
+- ADR target: `2,400 USD (US listing ASML; ≈ 2,133 EUR)`; upside vs the ADR price.
+- Covered but no public coverage of the note: topics `Not reported publicly`.
+- Rating change in window: Action `Hold → Buy (2026-07-31)`.
+
+| Bank view | Buy | Hold | Sell | Big-4 covering | Median target | Median upside | Raises / cuts (180d) |
+|---|---|---|---|---|---|---|---|
+
+```mermaid
+xychart-beta
+  title "Price-target history (‹USD›)"
+  x-axis ["‹2026-05-21›", "‹2026-08-27›"]
+  y-axis "‹USD›"
+  line [‹280, 320›]
+  line [‹288, 300›]
+```
+(one line per bank with ≥ 2 points; omit the chart if no bank has 2 points)
+
+## 6. Score
 ‹paste the table printed by scripts/scores.py›
 
 ## Sources

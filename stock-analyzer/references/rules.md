@@ -33,6 +33,23 @@ Every stock subagent obeys these. `scripts/validate_report.py` enforces the chec
 5. **1-month forecast** is anchored on data: RSI, distance to SMA50/200, 30d realized vol, catalysts dated within 30 days (earnings date from `price.json.quote.next_earnings_date`), news flow. A base case outside ±1.5× the 30d monthly vol (`vol_30d_ann / √12`) needs a dated catalyst.
 6. **News:** only Bloomberg, Reuters, FT, WSJ, CNBC (equal weight) plus official disclosures (SEC 8-K, KAP, company IR). Other outlets may lead you to a fact but are never cited.
 
-## 4. Data freshness
+## 4. Bank research (Section 5)
+1. **Ratings and targets** come only from `banks.json` (Yahoo upgrades/downgrades), from the broker's public page
+   (BIST local brokers, e.g. İş Yatırım company card), or — when `press_rating_hint` is set — from a cited
+   article in the allowed outlets that reports **that bank's** rating action inside the window (`rating_source: "press"`).
+2. **Topics** come only from coverage of **that bank's specific note**, dated inside the window, each with a URL in
+   `topic_sources`. Conference talk, CEO interviews and deal banking (`is_note: false`) are not notes.
+   A covered bank whose note has no public coverage → `topics_status: "not_reported"`. Never fill from memory or another bank.
+3. **Allowed outlets:** Bloomberg, Reuters, FT, WSJ, CNBC, Barron's, MarketWatch, Investing.com, TipRanks, TheFly,
+   StreetInsider; for BIST also Bloomberg HT and the brokers' own public research pages.
+4. **Never compare a target with a price of a different listing or currency.** ADR targets (e.g. ASML US, USD) are
+   compared with the ADR price; the report-currency equivalent is shown for reference only.
+5. **Fixed banks always appear** — JPMorgan, Bank of America, Morgan Stanley, Goldman Sachs — as 4 rows, covered or not.
+   ≤ 3 substitutes (Citi, UBS, Barclays, Deutsche Bank, Wells Fargo, HSBC); for BIST ≤ 3 local brokers.
+6. **Important topics** = the note's 1–3 thesis drivers. **Niche topics** = 1–3 non-obvious, specific points (channel
+   check, customer/supplier datapoint, margin-bridge item, regulatory detail, contrarian risk). ≤ 12 words each.
+   ✗ "AI demand strong" · ✓ "CoWoS-L allocation +X% for 2027 per JPM supply-chain check".
+
+## 5. Data freshness
 - Run the scripts in **this** session; never reuse `data/` from an earlier day.
-- Price < 1 trading day old; financials = latest filed FY + TTM; news = last 30 days (`--days 60` if < 3 items).
+- Price < 1 trading day old; financials = latest filed FY + TTM; news = last 30 days (`--days 60` if < 3 items); bank views = last 180 days.

@@ -10,8 +10,11 @@ rejects sidecars whose scores don't match `scores.py`.
  "C2": {"market_share": 0, "moat": 0, "swot_balance": 0},
  "C3": {"revenue_growth": 0, "profit_growth_margins": 0, "earnings_quality": 0, "balance_sheet": 0},
  "C4a": {"multiples": 0, "fair_value_upside": 0},
- "C4b": {"expected_move_1m": 0, "news_risk": 0, "manipulation": "L|M|H", "ceo_trust": 0}}
+ "C4b": {"expected_move_1m": 0, "news_risk": 0, "manipulation": "L|M|H", "ceo_trust": 0},
+ "C5": {"rating_mix": 0, "target_upside": 0, "revision_trend": 0}}
 ```
+C5 starting values: `python scripts/scores.py --banks data/<TICKER>/banks.json` (deterministic from the script
+summary). Recompute by the same formulas if you add press-verified bank rows; never adjust by feel.
 
 ## Component sub-criteria and anchors
 
@@ -52,13 +55,23 @@ rejects sidecars whose scores don't match `scores.py`.
 | manipulation (15%) | High → 1 | Medium → 5 | Low → 10 (scores.py maps L/M/H) |
 | ceo_trust (20%) | = CEO scorecard score (0–10) | | |
 
+### C5 Bank consensus (Section 5)
+| Sub (weight) | 0 | 5 | 10 |
+|---|---|---|---|
+| rating_mix (40%) | all covered banks Sell | all Hold / mixed | all covered banks Buy (Buy = 10, Hold = 5, Sell = 0, averaged) |
+| target_upside (35%) | median upside ≤ −15% | 0% | ≥ +30% (linear in between) |
+| revision_trend (25%) | only cuts/downgrades in 180d | balanced or none | only raises/upgrades (10 × raises / (raises + cuts)) |
+
+Fewer than **2** covered banks (fixed + substitute + local) → every C5 sub = **5.0** and `s5.summary_tag = "Insufficient"`.
+
 ## Horizon weights → final scores
 | Component | Short (≤ 3 mo) | Medium (6–12 mo) | Long (1–3 yr) |
 |---|---|---|---|
 | C1 Business | 5% | 15% | 30% |
-| C2 Competition | 10% | 20% | 25% |
-| C3 Financials | 15% | 25% | 25% |
-| C4a Valuation | 20% | 25% | 15% |
-| C4b Momentum & risk | 50% | 15% | 5% |
+| C2 Competition | 10% | 15% | 20% |
+| C3 Financials | 10% | 20% | 25% |
+| C4a Valuation | 20% | 20% | 10% |
+| C4b Momentum & risk | 45% | 15% | 5% |
+| C5 Bank consensus | 10% | 15% | 10% |
 
 Final = Σ(component × weight), one decimal, shown as `X.X/10`. Higher = more likely to invest.

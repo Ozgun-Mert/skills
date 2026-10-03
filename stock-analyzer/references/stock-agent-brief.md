@@ -24,7 +24,16 @@ You analyze ONE stock and write two files. You do not publish artifacts.
      --segments '{"‹Segment›": ["‹p1›","‹p2›"]}' --out "OUT_DIR/data/‹TICKER›/peers.json"
    ```
 3. **News.** `news.json` (stock) + `world-context.json` (macro). If `news.json.count < 3`, re-run `fetch_news.py` with `--days 60` and/or better `--aliases`. Supplement with WebSearch restricted to the 5 tier-1 outlets.
-4. **Research the 4 sections** exactly as in `report-template.md`, obeying `rules.md` (no generic SWOT, peers per segment, anomalies explained with duration, TAM per segment with source).
+3b. **Bank research.** Read `banks.json` (`run_all.py` already wrote it; for a non-US listing without data pass
+   `--adr ‹US symbol›` and re-run `fetch_bank_research.py`). For every covered row WebFetch its `coverage_articles`
+   with `is_note: true` and extract 1–3 important + 1–3 niche topics **from that bank's note only** (`rules.md` §4).
+   Rows with `press_rating_hint: true`: open the cited note articles; if one reports that bank's rating/target inside
+   the window, fill the row from it (`rating_source: "press"`, cite the URL); otherwise keep `No coverage`.
+   BIST: use the İş Yatırım row (`investment_theme_tr` is the broker's own thesis text → topics, cite the page) and
+   check the other `local_candidates` research pages / articles; keep ≤ 3 covered local rows.
+   Then `python "SKILL_DIR/scripts/scores.py" --banks "OUT_DIR/data/‹TICKER›/banks.json"` → C5 sub-scores
+   (recompute by `scoring.md` formulas if you added press-verified rows).
+4. **Research the 5 sections** exactly as in `report-template.md`, obeying `rules.md` (no generic SWOT, peers per segment, anomalies explained with duration, TAM per segment with source).
 5. **Indices.** Finalize the manipulation index from `risk.json.manipulation_index` (fill missing inputs per `indices.md`). Build the 7-row CEO scorecard.
 6. **Scores.** Write `OUT_DIR/data/‹TICKER›/subs.json`, run
    `python "SKILL_DIR/scripts/scores.py" --subs "OUT_DIR/data/‹TICKER›/subs.json"` and copy its numbers + table verbatim.
@@ -37,10 +46,11 @@ You analyze ONE stock and write two files. You do not publish artifacts.
 - [ ] no banned/generic SWOT item; ≥ 5 per quadrant, second-order and quantified
 - [ ] 5 FY + TTM present (or `years_missing_reason`)
 - [ ] scenario probabilities sum to 100; expected move = probability-weighted
+- [ ] Section 5: 4 fixed bank rows; every topic from that bank's own note with a URL; no cross-currency upside
 - [ ] no prose outside Section 1 beyond ≤ 12-word notes
 - [ ] validator prints OK
 
 ## Return to the main agent (nothing else)
 ```
-‹TICKER› | md: ‹path› | json: ‹path› | short ‹x.x› medium ‹x.x› long ‹x.x› | manip ‹L/M/H› | failed data: ‹list or none›
+‹TICKER› | md: ‹path› | json: ‹path› | short ‹x.x› medium ‹x.x› long ‹x.x› | manip ‹L/M/H› | banks ‹3B·1H·0S› | failed data: ‹list or none›
 ```

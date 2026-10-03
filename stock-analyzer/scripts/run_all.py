@@ -5,7 +5,7 @@ Usage (values from resolve_ticker.py output):
       [--cik 320193] [--exchange NASDAQ] [--aliases "..."] [--news-days 30]
   python run_all.py --input "turkish airlines" --outdir ...     # resolves first (non-ambiguous only)
 
-Writes: price.json, financials.json, multiples.json, news.json, risk.json, run_summary.json
+Writes: price.json, financials.json, multiples.json, news.json, risk.json, banks.json, run_summary.json
 Peers are separate (agent picks them per segment): fetch_peers.py --out <outdir>/peers.json
 """
 from __future__ import annotations
@@ -36,6 +36,8 @@ def main():
     ap.add_argument("--exchange")
     ap.add_argument("--aliases", default="")
     ap.add_argument("--news-days", type=int, default=30)
+    ap.add_argument("--adr", help="US listing/ADR Yahoo symbol for bank ratings (auto-discovered if omitted)")
+    ap.add_argument("--bank-days", type=int, default=180)
     ap.add_argument("--outdir", required=True)
     a = ap.parse_args()
     if a.input and not a.tv:
@@ -68,6 +70,9 @@ def main():
                                                   "--out", o("multiples.json")]),
             ex.submit(run, "fetch_risk_inputs.py", ["--tv", a.tv, "--yahoo", a.yahoo, "--name", a.name, *al,
                                                     "--price", o("price.json"), "--out", o("risk.json")]),
+            ex.submit(run, "fetch_bank_research.py", ["--tv", a.tv, "--yahoo", a.yahoo, "--name", a.name, *al,
+                                                      *(["--adr", a.adr] if a.adr else []), "--days", str(a.bank_days),
+                                                      "--price", o("price.json"), "--out", o("banks.json")]),
         ]
         results += [f.result() for f in stage2]
 
@@ -75,7 +80,8 @@ def main():
     print(f"{'file':<16} {'rc':>3} {'errors':>6}  notes")
     for script, rc, tail in results:
         fname = {"fetch_price.py": "price.json", "fetch_financials.py": "financials.json", "fetch_news.py": "news.json",
-                 "fetch_multiples.py": "multiples.json", "fetch_risk_inputs.py": "risk.json"}[script]
+                 "fetch_multiples.py": "multiples.json", "fetch_risk_inputs.py": "risk.json",
+                 "fetch_bank_research.py": "banks.json"}[script]
         info = {"rc": rc, "errors": None, "notes": ""}
         try:
             with open(o(fname), encoding="utf-8") as f:
@@ -91,6 +97,11 @@ def main():
             elif fname == "multiples.json":
                 c = d.get("current", {})
                 info["notes"] = f"P/E={c.get('pe_ttm')}, EV/EBITDA={c.get('ev_ebitda')}"
+            elif fname == "banks.json":
+                sm = d.get("summary", {})
+                up = sm.get("median_upside_pct")
+                info["notes"] = (f"{sm.get('covered_fixed')}/4 fixed covered, {sm.get('buy')}B/{sm.get('hold')}H/{sm.get('sell')}S"
+                                 f", median upside {'%+.0f%%' % up if up is not None else 'n/a'}, {sm.get('articles_found')} articles")
             elif fname == "risk.json":
                 m = d.get("manipulation_index", {})
                 info["notes"] = f"manip partial={m.get('partial_total')} missing={len(m.get('missing_inputs', []))}"

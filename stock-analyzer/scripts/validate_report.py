@@ -34,6 +34,84 @@ def walk_L(obj, path=""):
             yield from walk_L(v, f"{path}[{i}]")
 
 
+FIXED_BANKS = ["JPMorgan", "Bank of America", "Morgan Stanley", "Goldman Sachs"]
+BANNED_TOPICS = BANNED + [r"\bstrong demand\b", r"\bAI tailwinds?\b", r"\bsolid execution\b", r"\bwell[- ]positioned\b",
+                          r"\battractive valuation\b", r"\bgrowth (story|outlook)\b$", r"\bstrong (results|quarter)\b$"]
+
+
+def check_s5(rep: dict) -> list[str]:
+    """Section 5 (bank research) rules from references/rules.md."""
+    from datetime import date
+    errs, s5 = [], rep["s5"]
+    rows = s5["rows"]
+    fixed = [r for r in rows if r["role"] == "fixed"]
+    names = [r["bank"] for r in fixed]
+    for b in FIXED_BANKS:
+        if names.count(b) != 1:
+            errs.append(f"s5: fixed bank '{b}' must appear exactly once (found {names.count(b)})")
+    if len(fixed) != 4:
+        errs.append(f"s5: exactly 4 fixed rows required (found {len(fixed)})")
+    if sum(r["role"] == "substitute" for r in rows) > 3:
+        errs.append("s5: max 3 substitute rows")
+    local = [r for r in rows if r["role"] == "local"]
+    if local and rep["meta"]["exchange"] != "BIST":
+        errs.append("s5: local broker rows only allowed for BIST stocks")
+    if len(local) > 3:
+        errs.append("s5: max 3 local rows")
+    try:
+        ref = date.fromisoformat(rep["meta"]["report_date"][:10])
+    except ValueError:
+        ref = None
+    price = rep["snapshot"]["price"]
+    for i, r in enumerate(rows):
+        tag = f"s5.rows[{i}] {r['bank']}"
+        if r["covered"]:
+            if not r["date"] or r["rating"] is None:
+                errs.append(f"{tag}: covered rows need date and normalized rating")
+            elif ref and (ref - date.fromisoformat(r["date"][:10])).days > s5["window_days"]:
+                errs.append(f"{tag}: date {r['date']} older than window ({s5['window_days']}d)")
+            if (r.get("target") and price and r.get("upside_pct") is not None
+                    and (r.get("target_currency") in (None, rep["meta"]["currency"]))):
+                exp = (r["target"] / price - 1) * 100
+                if abs(exp - r["upside_pct"]) > 0.5:
+                    errs.append(f"{tag}: upside_pct {r['upside_pct']} but target/price gives {exp:.2f}")
+            if r["topics_status"] == "no_coverage":
+                errs.append(f"{tag}: covered row cannot have topics_status 'no_coverage'")
+            if r["topics_status"] == "reported" and not (r["important"] or r["niche"]):
+                errs.append(f"{tag}: topics_status 'reported' but no topics")
+            if r["topics_status"] == "reported" and not r.get("topic_sources"):
+                errs.append(f"{tag}: reported topics need topic_sources (article URLs or source ids)")
+        else:
+            if r["topics_status"] != "no_coverage" or r["important"] or r["niche"] or r["rating"] or r["target"]:
+                errs.append(f"{tag}: uncovered rows must be empty with topics_status 'no_coverage'")
+        for k in ("important", "niche"):
+            for j, L in enumerate(r[k]):
+                if len(L["en"].split()) > 12:
+                    errs.append(f"{tag}.{k}[{j}]: {len(L['en'].split())} words (>12)")
+                for b in BANNED_TOPICS:
+                    if re.search(b, L["en"], re.I):
+                        errs.append(f"{tag}.{k}[{j}]: generic phrasing '{L['en'][:50]}'")
+    cov = [r for r in rows if r["covered"]]
+    c = s5["consensus"]
+    for k, lab in (("buy", "Buy"), ("hold", "Hold"), ("sell", "Sell")):
+        n = sum(r["rating"] == lab for r in cov)
+        if c[k] != n:
+            errs.append(f"s5.consensus.{k}={c[k]} but rows give {n}")
+    if c["covered_fixed"] != sum(r["covered"] for r in fixed):
+        errs.append("s5.consensus.covered_fixed does not match fixed rows")
+    exp_tag = ("Insufficient" if len(cov) < 2 else "Buy-majority" if c["buy"] > len(cov) / 2
+               else "Sell-majority" if c["sell"] > len(cov) / 2 else "Mixed")
+    if s5["summary_tag"] != exp_tag:
+        errs.append(f"s5.summary_tag={s5['summary_tag']} but rows give {exp_tag}")
+    if rep["tags"].get("bank_view") not in (None, s5["summary_tag"]):
+        errs.append("tags.bank_view != s5.summary_tag")
+    if len(cov) < 2:
+        subs = {x["key"]: x["score"] for x in rep["scores"]["components"]["C5"]["subs"]}
+        if any(abs(v - 5.0) > 0.01 for v in subs.values()):
+            errs.append("C5: fewer than 2 covered banks -> every C5 sub-score must be 5.0")
+    return errs
+
+
 def validate(path: str) -> tuple[list[str], list[str]]:
     errs, warns = [], []
     with open(path, encoding="utf-8") as f:
@@ -107,6 +185,7 @@ def validate(path: str) -> tuple[list[str], list[str]]:
             for b in BANNED:
                 if re.search(b, L["en"], re.I):
                     errs.append(f"{path_}: generic/banned phrasing '{L['en'][:60]}'")
+    errs += check_s5(rep)
     ids = {s["id"] for s in rep["sources"]}
     for path_, val in _sources(rep):
         if val and not val.startswith("http") and val not in ids:

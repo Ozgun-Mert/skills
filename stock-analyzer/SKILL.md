@@ -1,6 +1,6 @@
 ---
 name: analyze-stock
-description: Data-driven multi-agent stock analysis. Use when the user types /analyze-stock, asks to analyze a stock or a list of tickers/company names (e.g. "analyze aapl, nvidia, amd", "should I invest in THYAO", "compare ASML and TSMC"), wants a stock score, SWOT, valuation, 1-month price expectation, or manipulation/news risk for US, BIST (Turkey) or global equities. Fetches live prices and statements via scripts (TradingView, SEC EDGAR, Yahoo), tier-1 news (Bloomberg, Reuters, FT, WSJ, CNBC), writes a table-first .md report per stock and publishes one shareable dashboard artifact with EN/TR toggle.
+description: Data-driven multi-agent stock analysis. Use when the user types /analyze-stock, asks to analyze a stock or a list of tickers/company names (e.g. "analyze aapl, nvidia, amd", "should I invest in THYAO", "compare ASML and TSMC"), wants a stock score, SWOT, valuation, 1-month price expectation, manipulation/news risk, or what JPMorgan / Bank of America / Morgan Stanley / Goldman Sachs say about a stock (ratings, price targets, report topics) for US, BIST (Turkey) or global equities. Fetches live prices and statements via scripts (TradingView, SEC EDGAR, Yahoo), tier-1 news (Bloomberg, Reuters, FT, WSJ, CNBC), big-bank ratings/targets and coverage of their notes, writes a table-first .md report per stock and publishes one shareable dashboard artifact with EN/TR toggle.
 argument-hint: "<ticker or name>[, <ticker or name>, ...]"
 ---
 
@@ -13,7 +13,10 @@ Input: `$ARGUMENTS` — one or more names/tickers, comma-separated (`aapl, nvidi
 
 **Hard rules:** never use numbers from memory · every number traces to a script output or a cited
 tier-1/official source · outputs are tables/charts/tags; prose only in Section 1 (≤ 60 words each) ·
-not investment advice.
+bank report topics only from coverage of that bank's own note · not investment advice.
+
+Report sections: 1 Business · 2 Competition · 3 Financials · 4 Price & risk · 5 Bank research (JPM, BofA, MS, GS
++ substitutes / BIST local brokers, 180 days) · Score (C1–C5, short/medium/long).
 
 Install / update (from the repo): `powershell -ExecutionPolicy Bypass -File stock-analyzer/install.ps1`
 (plain `-File` is blocked by the default Windows execution policy).
@@ -47,9 +50,9 @@ and returns one summary line. Subagents never publish artifacts.
    A same-day re-run republishes the same file path to keep the URL.
 
 ## Final reply (nothing else)
-| Ticker | Price | Short | Medium | Long | Manipulation | Report |
-|---|---|---|---|---|---|---|
-| ‹T› | ‹292.00 TRY› | ‹6.1› | ‹6.3› | ‹6.6› | ‹M› | [‹T›.md](‹path›) |
+| Ticker | Price | Short | Medium | Long | Manipulation | Banks | Report |
+|---|---|---|---|---|---|---|---|
+| ‹T› | ‹292.00 TRY› | ‹6.1› | ‹6.3› | ‹6.6› | ‹M› | ‹3B·1H·0S› | [‹T›.md](‹path›) |
 
 + the artifact link + "Not investment advice."
 
@@ -57,14 +60,15 @@ and returns one summary line. Subagents never publish artifacts.
 | Script | What |
 |---|---|
 | `resolve_ticker.py "a, b"` | name/ticker → `tv_symbol`, `yahoo_symbol`, exchange, currency, CIK, ambiguity |
-| `run_all.py --tv --yahoo --name [--cik --aliases] --outdir` | runs the 5 fetchers below (≈ 10 s) + `run_summary.json` |
+| `run_all.py --tv --yahoo --name [--cik --aliases --adr] --outdir` | runs the 6 fetchers below (≈ 15 s) + `run_summary.json` |
 | `fetch_price.py` | TradingView price/perf/volume/float/RSI/SMA; Yahoo 1Y series, realized vol, cross-check |
 | `fetch_financials.py` | 5 FY + TTM: EDGAR (US) > TradingView > Yahoo; FX-translated, USD growth, discrepancies |
 | `fetch_multiples.py --fin` | current multiples, analyst targets/ratings, 5y P/E · EV/EBITDA · P/S history |
 | `fetch_peers.py --subject --peers [--segments]` | peer table in USD + peer medians |
 | `fetch_news.py` | stock mode (tier-1 + SEC 8-K / KAP) or `--world` mode |
 | `fetch_risk_inputs.py` | ownership, short interest, insiders, CEO, ISS governance, regulatory headlines, manipulation pre-score |
-| `scores.py --subs` | the only allowed score calculator |
+| `fetch_bank_research.py [--adr --days]` | 4 fixed banks + substitutes (+ BIST local brokers): rating, target, upside, 180d history, coverage articles flagged `is_note` |
+| `scores.py --subs` / `--banks` | the only allowed score calculator; `--banks` gives C5 sub-scores from `banks.json` |
 | `validate_report.py` | schema + semantic checks (scores, probabilities, banned phrasing, 5 FY…) |
 | `build_dashboard.py --dir [--tickers]` | embeds sidecars into `templates/dashboard.html` |
 
@@ -81,3 +85,7 @@ References: `rules.md` · `scoring.md` · `indices.md` · `report-template.md` �
 - Exact-ticker matches can be cross-listings (`lufthansa` → BET:LUFTHANSA); the resolver prefers the same company's primary listing (XETR:LHA). `google` resolves to NASDAQ:GOOG (class C); pass `NASDAQ:GOOGL` explicitly if wanted.
 - Short interest is usually `null` outside the US → score 1 pt and say "not published".
 - Invalid TradingView column names return `null`, not an error — check new fields with a live call before relying on them.
+- Yahoo's grade feed spells BofA **`B of A Securities`**; Firm matching is exact (substring would match "Citizens" for Citi).
+- Yahoo's grade feed is incomplete (NVDA: no Goldman row, yet the press reported a Goldman PT raise on 2026-08-27). Such rows carry `press_rating_hint: true` — verify and fill from the cited article.
+- No Yahoo grades for BIST and many non-US primaries. Non-US: the script falls back to the US ADR (`ASML.AS` → `ASML`, targets in USD; upside vs the ADR price). BIST: İş Yatırım's public company card is parsed (rating, date, target, `investment_theme_tr`).
+- Yahoo grade rows can have an empty `ToGrade` (PT-only update) → the last known grade is carried and marked `rating_inferred`.
