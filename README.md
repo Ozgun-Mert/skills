@@ -6,6 +6,7 @@ script copies it into `~/.claude/skills/` so the slash command works in every pr
 | Skill | Command | What it does |
 |---|---|---|
 | [stock-analyzer](stock-analyzer/) | `/analyze-stock` | Data-driven, multi-agent stock analysis with a shareable dashboard |
+| [seo-optimizer](seo-optimizer/) | `/optimize-seo` | People-first SEO: keyword research, intent → page map, pages and technical SEO, with approval at every step |
 
 ---
 
@@ -149,3 +150,161 @@ stock-analyzer/
   restated vs nominal figures; the scripts align them and add a `basis_note`.
 
 _Not investment advice._
+
+---
+
+## seo-optimizer — `/optimize-seo`
+
+```
+/optimize-seo ['qr menü', 'karekod menü']
+/optimize-seo
+```
+
+Run it inside a website project (or an empty folder). Words are optional and can be written as a
+list, comma-separated or quoted (`qr menü, karekod menü` works too). `/optimize-SEO` also works.
+
+| Input | What happens first |
+|---|---|
+| Words given | Reads the project, expands the words with close variants (synonyms, spellings, long-tail, local forms), asks you to approve the list |
+| No words, existing site | Reads the frontend and proposes a prioritized word list, each with a reason |
+| No words, empty folder | Interviews you (product, audience, market, language, competitors, pages), then proposes words and a stack (Next.js by default, never scaffolded without a yes) |
+
+The goal is for **the website** to rank, not for the landing page to match every phrase. Each
+search intent gets the page that answers it best (blog post, keyword page, pricing, about,
+contact), and the landing page stays short. A search like "nişantaşı arabuluculuk" can be won by
+the Contact page.
+
+### How a run works
+
+| Phase | What | Your approval |
+|---|---|---|
+| 0 Preflight | Reads `seo/seo-plan.json` from earlier runs, adds `/seo/` to `.gitignore`, audits the source (`source_audit.py`), maps the backend paths it must never touch, asks for the live URL | — |
+| 1 Words | Mode chosen from the table above; asks about language, country, city | Word list |
+| 2 Research | Top-3 Google results per word (built-in browser; WebSearch fallback if Google shows a CAPTCHA), People Also Ask, relevance verdict per result → `seo/research/` | — |
+| 3 Keyword map | Sub-keywords × intent (informational, commercial, pricing, local, brand) → one page per primary keyword, no duplicates or doorway pages | One table, one row per page: yes / no / yes but change |
+| 4 Briefs | Outline per page, gap vs. competitors, product claims to confirm, original data to supply | Claims list |
+| 5 Trust pages | About, Contact, Terms, Privacy, Security, KVKK/GDPR… | Yes / Yes with banner / No per legal page |
+| 6 Build | Titles, meta, H1–H3, alt text, clean URLs, canonicals, JSON-LD, internal links, robots.txt, sitemap.xml, server-rendered links and content | File list go-ahead |
+| 7 Verify | Raw-HTML crawl (`crawl_check.py`), robots/sitemap (`sitemap_check.py`), status codes, mobile screenshots at 360/390/768/1280 px, Core Web Vitals via PageSpeed (`psi.py`, deployed URL) | Fixes to pre-existing code |
+| 8 Report | Pages, open placeholders, backend/server issues for you, Search Console steps, pending checks, SEO feature ideas | — |
+
+### What you get
+
+| Where | Content |
+|---|---|
+| The project itself | New and updated frontend pages and components, `robots.txt`/`app/robots.ts`, `sitemap.xml`/`app/sitemap.ts`, JSON-LD, metadata. Nothing is committed: review the diff yourself |
+| `seo/seo-plan.json` + `.md` | Word list, keyword → page map, rejected rows, confirmed/denied features, open placeholders, issues for you, pending checks, suggestions. Gitignored; later runs read it so they don't repeat questions or create competing pages |
+| `seo/research/<keyword>.md` | Top-3 results per keyword: outlines, what they miss, relevance verdicts, source links |
+| `seo/crawl.json`, `seo/sitemap-check.json`, `seo/psi-*.json` | Raw verification results |
+| Final reply | The six report sections above, in the language you use |
+
+Missing facts (prices, phone, address, author, legal details) are never guessed. They appear on
+the page as `{{PLACEHOLDER: name}}` so they can't ship unnoticed. Find them all with:
+
+```bash
+grep -rn "{{PLACEHOLDER:" .
+```
+
+### What it asks you for
+
+- Answers at each approval step (it stops and waits; it never continues on a guess).
+- The production URL, if the site is live: needed for canonicals, the sitemap, status checks and PageSpeed.
+- An optional, free [PageSpeed Insights API key](https://developers.google.com/speed/docs/insights/v5/get-started).
+  The keyless quota is shared worldwide and is often used up. Pass it with `--key` or the
+  `PSI_API_KEY` env var; it is never written to files.
+- API contracts (endpoint, request/response shape, auth) if a page needs backend data.
+
+### Rules it follows
+
+- Never edits backend code (API routes, server, DB/ORM, auth, `.env*`). Asks before touching
+  ambiguous config (`middleware.ts`, `next.config.*`, `vercel.json`).
+- Never fabricates stats, reviews, testimonials, ratings, features or legal facts.
+- Never copies competitor text; never solves CAPTCHAs.
+- Never runs git commands that change anything (only adds `/seo/` to `.gitignore`).
+- Leaves visuals alone unless they hurt SEO, and then asks.
+- Legal pages marked "Yes with banner" get a visible notice that the text is AI-generated and
+  must be reviewed by a lawyer.
+
+### Install
+
+Requires Python 3.10+ (standard library only, nothing to pip install) and Windows PowerShell.
+
+```bash
+powershell -ExecutionPolicy Bypass -File seo-optimizer/install.ps1
+```
+
+Copies the skill to `%USERPROFILE%\.claude\skills\optimize-seo\`. Re-run it after editing anything
+in `seo-optimizer/`. Start a new Claude Code session to pick up the command.
+
+### Running the scripts directly
+
+| Script | What it does |
+|---|---|
+| `ensure_gitignore.py` | Adds `/seo/` to `.gitignore` once, detects a clashing `seo/` app folder, verifies with `git check-ignore`, reports already-tracked state files |
+| `source_audit.py` | Static audit, no build needed: stack, routes, metadata, robots/sitemap, JSON-LD, page-level `'use client'`, `onClick` navigation, missing `alt`, H1 counts, client-side fetching, placeholders, backend paths |
+| `crawl_check.py` | Crawls a served site without JavaScript or auto-redirects: status codes, redirect chains, title/description/H1/canonical/lang, duplicates, orphans, click depth, soft 404s, leftover placeholders |
+| `sitemap_check.py` | Validates robots.txt and sitemap.xml: absolute canonical URLs, lastmod, 200 status, noindex conflicts, blocked assets, pages missing from the sitemap |
+| `psi.py` | PageSpeed Insights (mobile + desktop) against LCP < 2.5 s, INP < 200 ms, CLS < 0.1; field data when available, lab data otherwise |
+
+```bash
+python seo-optimizer/scripts/ensure_gitignore.py --root path/to/site
+```
+
+```bash
+python seo-optimizer/scripts/source_audit.py --root path/to/site
+```
+
+```bash
+python seo-optimizer/scripts/crawl_check.py http://localhost:3000 --sitemap --out seo/crawl.json
+```
+
+```bash
+python seo-optimizer/scripts/sitemap_check.py http://localhost:3000 --crawl seo/crawl.json
+```
+
+```bash
+python seo-optimizer/scripts/psi.py https://example.com/ --key YOUR_KEY
+```
+
+### Test results
+
+Five scenarios, each run with and without the skill, with the user's answers scripted
+(`evals/evals.json`): a Next.js QR-menu SaaS with words, a plain-HTML mediator site with no words,
+an empty folder, a client-only Vite/React app, and a word that needs a feature the product lacks.
+
+| | With skill | Without skill |
+|---|---|---|
+| Checks passed | 59/59 (100%) | 41/59 (73%) |
+| Average time / tokens per run | 558 s / 151k | 271 s / 87k |
+
+Without the skill, runs edited backend files, wrote "coming soon" text instead of trackable
+placeholders, used legal banners that didn't say the text was AI-generated, kept no state, and
+didn't gitignore anything. Both versions handled the empty folder and the missing-feature case
+well.
+
+### Known limitations
+
+- Google often blocks automated searches. The WebSearch fallback is not Google's ranking and gives
+  weaker results for non-English (e.g. Turkish) queries; the report says when it was used.
+- Builds, mobile screenshots and runtime crawls need the project's dependencies installed. The
+  skill asks before running `npm install`; without it those checks are reported as pending.
+- Core Web Vitals need a deployed URL. Before launch they are pending, and only static
+  performance risks are reported.
+- A client-only SPA (Vite/CRA) stays weak for SEO until it is prerendered or moved to SSG. The skill
+  explains the options but never migrates without approval.
+- Redirects, HTTPS, www vs. non-www and soft 404s are server or hosting settings. They are reported
+  to you, not fixed.
+- Generated legal text is a starting point, not legal advice: have a lawyer review it.
+
+### Layout
+
+```
+seo-optimizer/
+├── SKILL.md              # the skill (name: optimize-seo)
+├── seo-optimizer.md      # copy of SKILL.md, kept in sync by install.ps1
+├── install.ps1
+├── references/           # research, keyword mapping, content, trust/legal pages,
+│                         # per-framework technical SEO, verification, state schema
+├── scripts/              # ensure_gitignore, source_audit, crawl_check, sitemap_check, psi
+└── evals/evals.json      # test scenarios with scripted user answers
+```

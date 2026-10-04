@@ -1,0 +1,51 @@
+{
+  "skill_name": "optimize-seo",
+  "harness": "Each eval runs non-interactively against a copy of a fixture project (built by seo-optimizer-workspace/make_fixtures.py). User answers are scripted in the prompt; a question with no scripted answer must be written to outputs/conversation.md under '## WAITING FOR USER' and the run stops there.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "nextjs-qr-menu-words",
+      "fixture": "nextjs-qr-menu",
+      "prompt": "/optimize-seo ['qr menü', 'karekod menü']",
+      "scripted_answers": "Language Turkish, market all of Turkey (not one city), audience restaurant/cafe/bar owners (B2B). No live URL yet. Approve your proposed word list as is. Page plan: approve every row; we DO want a pricing page but prices aren't final, use placeholders; blog is fine. Capabilities: multi-language menus YES (TR/EN/AR/RU), instant updates YES, printable QR per table YES, menu-view analytics YES, online ordering NO, POS integration NO, payments NO. No customer stats, testimonials or logos available. Legal: Privacy -> Yes with banner, Terms -> Yes with banner, KVKK -> Yes with banner, Cookies -> No, Security -> No. Legal facts: Menulio Teknoloji A.Ş., Maslak, İstanbul, Turkey; users in Turkey; data on AWS eu-central-1; processors AWS, iyzico (payments for subscription), Postmark (email); retention: while account is active + 1 year; contact kvkk@menulio.example; no users under 18. Final go-ahead: yes. Moving 'use client' into small leaf components is approved; do not change colors/styling. Do not install dependencies.",
+      "expected_output": "Keyword map with intents; a lean landing page; a keyword page (/qr-menu or similar); an informational blog post; /pricing (or /fiyatlar) with {{PLACEHOLDER: ...}} prices; legal pages with AI banner; app/robots.ts + app/sitemap.ts (absolute URLs from a site-url constant/placeholder); page-level 'use client' removed and navigation converted to <Link>; app/api, lib/db.ts, prisma untouched; no online-ordering promises; seo/ state written and gitignored; no git commits.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "mediator-html-no-words",
+      "fixture": "mediator-html",
+      "prompt": "/optimize-seo",
+      "scripted_answers": "Language Turkish. Office is in Nişantaşı, Şişli, İstanbul; clients come from all of İstanbul. Services: commercial, labour (işçi-işveren) and family mediation. Approve your proposed word list, but it must include 'nişantaşı arabuluculuk'. Page plan: approve all rows EXCEPT any blog posts (no blog for now). Address, phone, registry number and working hours are not available yet (use placeholders). Legal: KVKK Aydınlatma Metni -> Yes with banner; Privacy Policy -> No; Terms -> No. Legal facts: data controller is Deniz Kaya (sole practitioner), contact form goes through Formspree (US), retention 2 years, contact info@denizkaya-arabulucu.example. Final go-ahead: yes. You may run a local static server (python -m http.server) to verify. No live URL.",
+      "expected_output": "Proposes a prioritized word list including local terms; local intent served by /hakkimda or /iletisim (not stuffed into the home page); LegalService/LocalBusiness JSON-LD with placeholders for address/phone; unique titles, descriptions, canonicals, lang, viewport on every page; robots.txt + sitemap.xml; KVKK page with AI banner; no blog created; crawl_check run on a local server; placeholders listed; seo/ gitignored.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "empty-folder-interview",
+      "fixture": "empty-folder",
+      "prompt": "/optimize-seo",
+      "scripted_answers": "(none: the user has not said anything yet)",
+      "expected_output": "Detects a blank project, interviews the user (product, audience, location/market, language, competitors, business model, pages wanted), proposes Next.js but asks before scaffolding, and stops at WAITING FOR USER without creating site files.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "vite-spa-client-rendering",
+      "fixture": "vite-spa-barber",
+      "prompt": "/optimize-seo ['berber randevu', 'online randevu sistemi']",
+      "scripted_answers": "Language Turkish, market all of Turkey, audience barbers and hair salons. Approve your proposed word list. Rendering: explain the options but do NOT migrate or add prerendering now, we decide later. No new npm dependencies. Converting div/button onClick navigation into real links is approved. Page plan: approve every row. Capabilities: everything in README is correct; there is no online payment and no WhatsApp integration. No testimonials or stats. Legal pages: No for all for now. Live URL: none yet (use a placeholder). Final go-ahead: yes.",
+      "expected_output": "Flags client-only rendering and proposes prerender/SSG options without implementing them (package.json unchanged); converts onClick navigation to <Link>/<a href>; per-route titles/meta without new deps; public/robots.txt and public/sitemap.xml; alt text; content pages for the approved intents; seo/ gitignored; no git commits.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "feature-conflict-online-ordering",
+      "fixture": "nextjs-qr-menu",
+      "prompt": "/optimize-seo ['qr menü online sipariş']",
+      "scripted_answers": "Language Turkish, market all of Turkey, audience restaurant owners. (Nothing else is scripted.)",
+      "expected_output": "Notices the README says there is no online ordering, tells/asks the user instead of planning pages that promise ordering, suggests it as a feature idea or re-scoping the word, and stops for the user's decision without writing site pages.",
+      "files": []
+    }
+  ]
+}
