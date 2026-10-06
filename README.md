@@ -7,6 +7,7 @@ script copies it into `~/.claude/skills/` so the slash command works in every pr
 |---|---|---|
 | [stock-analyzer](stock-analyzer/) | `/analyze-stock` | Data-driven, multi-agent stock analysis with a shareable dashboard |
 | [seo-optimizer](seo-optimizer/) | `/optimize-seo` | People-first SEO: keyword research, intent → page map, pages and technical SEO, with approval at every step |
+| [backend-checker](backend-checker/) | `/check-backend-security` · `/check-backend-code-quality` · `/check-backend-health` | Backend security audit and code-quality review as gitignored reports in `docs/`, incremental and token-efficient |
 
 ---
 
@@ -307,4 +308,129 @@ seo-optimizer/
 │                         # per-framework technical SEO, verification, state schema
 ├── scripts/              # ensure_gitignore, source_audit, crawl_check, sitemap_check, psi
 └── evals/evals.json      # test scenarios with scripted user answers
+```
+
+---
+
+## backend-checker — `/check-backend-security` · `/check-backend-code-quality` · `/check-backend-health`
+
+```
+/check-backend-security api web
+/check-backend-code-quality api packages/shared
+/check-backend-health api web packages/shared
+/check-backend-health api --full
+```
+
+The first path is the API directory, and everything in it is analyzed. Further paths (frontend,
+shared types) are optional context that is read only where a check needs it, e.g. secrets exposed to
+the frontend or prices the backend trusts from the client. Any language or framework. The skills
+**only report**: they never edit code, install packages or touch git.
+
+| Command | Runs | Writes |
+|---|---|---|
+| `/check-backend-security` | Security agent | `docs/SECURITY_PROBLEMS.md` |
+| `/check-backend-code-quality` | Code-quality agent | `docs/CODE_QUALITY.md` |
+| `/check-backend-health` | Every check in `core/registry.json`, in parallel | all reports |
+
+### What the reports cover
+
+**Security** (severity Critical/High/Medium/Low, OWASP tag, `file:line`, simple fix):
+
+| Section | Topic |
+|---|---|
+| 1a, 1b | Vulnerable/EOL runtime and libraries with the closest safe version (live OSV.dev + endoflife.date); secrets in git (incl. history) or exposed to the frontend |
+| 2a–2c | SQL/NoSQL injection; illogical data operations (FKs, cascades, missing transactions); unnecessary DB work (N+1, over-fetching) |
+| 3 | Runs the existing test suite: failing tests with one-sentence reasons, or "Test suite should be implemented" |
+| 4a, 4b | Questionable business rules (you're asked whether each is intended; answers are remembered); crash/corruption logic (math, nulls, stale cache) |
+| 5a, 5b | IDOR and mass assignment; trusting frontend values (prices, totals, roles) |
+| 6a–6c | Unprotected sensitive data at rest; responses returning too much; weak crypto |
+| 7–13 | Uploads, CORS (HTTP + WebSocket), security headers, rate limiting (API + per user), idempotency, enumeration messages, helmet or equivalent |
+| 14–21 | Auth & sessions (JWT, cookies, reset tokens), input validation & limits, other injection (command, path traversal, SSRF, prototype pollution, ReDoS), CSRF, error leakage & misconfiguration, secrets in logs, payment webhooks, WebSocket auth |
+
+**Code quality** (impact + effort, plans only, no code): repetitive code, typed input contracts,
+extensibility (e.g. adding a payment method), long functions/files and nesting, dead code, magic
+values, error-handling consistency, response/naming consistency, hardcoded dependencies, and weak or
+duplicated types. It ends with a refactor roadmap ordered by impact ÷ effort.
+
+Reports are overwritten on every run. **A fixed problem disappears completely** from the report;
+there is no "fixed since last run" section.
+
+### How a run works
+
+| Phase | What |
+|---|---|
+| 0 Preflight (scripts, no LLM) | `.gitignore` lines; `index.py` builds a map of files, hashes, import graph, stack, runtime, every dependency version, hotspot lines per topic, secrets scan, and test command; `plan.py` decides what each check must analyze |
+| 1 Prep (scripts) | `osv_check.py` (vulnerabilities and EOL, cached 7 days), `dupes.py` (duplicate blocks), `quality_scan.py` (long functions, magic values, dead code, weak types) |
+| 2 Agents | One check: one subagent. Health: the orchestrator reads the bundled code **once**, then forks one agent per check in one message, so they share it through the prompt cache (falls back to parallel subagents) |
+| 3 Merge | `findings.py` merges agent JSON with earlier findings: re-analyzed files are replaced, unchanged ones carried over, fixed ones vanish; 4a questions are asked once and remembered |
+| 4 Render | `findings.py render` writes the markdown with a summary table; the reply lists counts and what to fix first |
+
+**Incremental by default.** On a re-run only changed files, the files importing them, and
+cross-cutting sections whose inputs changed (CORS config, manifests, auth middleware…) are
+re-analyzed. With no changes no agent runs at all. `--full` forces a complete scan.
+
+### Privacy
+
+`docs/SECURITY_PROBLEMS.md`, `docs/CODE_QUALITY.md` and `docs/.backend-checks/` are added to
+`.gitignore`, because the security report is a map of your weaknesses. Secret values are masked
+(first 4 characters only). Only package names and versions are sent to external services (OSV,
+endoflife.date, npm/PyPI registries); source code never leaves the machine.
+
+### Install
+
+Requires Python 3.10+ (standard library only) and Windows PowerShell.
+
+```bash
+powershell -ExecutionPolicy Bypass -File backend-checker/install.ps1
+```
+
+Installs every skill under `backend-checker/skills/` to `%USERPROFILE%\.claude\skills\<name>\`, each
+with a copy of `core/`. Re-run it after editing anything in `backend-checker/`. Start a new Claude
+Code session to pick up the commands.
+
+### How to add a check
+
+1. Write `core/agents/<id>.md`: the checklist the agent follows on top of `agent-contract.md`.
+2. Write `core/references/sections-<id>.json` with the report sections and severity/impact scale.
+3. Add an entry to `core/registry.json`: id, title, brief, sections file, output report, hotspot
+   keys, prep scripts, and cross-cutting sections.
+4. Add `skills/check-backend-<id>/SKILL.md`, copying one of the existing thin ones and changing
+   `CHECKS`.
+5. Re-run `install.ps1`. `/check-backend-health` picks the new check up from the registry with no
+   changes, and `ensure_gitignore.py` ignores its report automatically.
+
+### Running the scripts directly
+
+```bash
+python backend-checker/core/scripts/index.py --root . --api api --extra web
+```
+
+```bash
+python backend-checker/core/scripts/plan.py --root . --checks all
+```
+
+```bash
+python backend-checker/core/scripts/osv_check.py --root .
+```
+
+```bash
+python backend-checker/core/scripts/findings.py render --root . --check security
+```
+
+### Layout
+
+```
+backend-checker/
+├── install.ps1
+├── skills/                    # thin entry points, one per slash command
+│   ├── check-backend-security/SKILL.md
+│   ├── check-backend-code-quality/SKILL.md
+│   └── check-backend-health/SKILL.md
+├── core/                      # copied into every installed skill
+│   ├── registry.json          # every check; health runs them all
+│   ├── agents/                # agent-contract.md + one brief per check
+│   ├── references/            # pipeline.md (orchestrator), sections-*.json, framework-equivalents.md
+│   └── scripts/               # index, plan, bundle, osv_check, dupes, quality_scan, run_tests,
+│                              # findings (merge/questions/decide/render), ensure_gitignore
+└── evals/evals.json           # scenarios on seeded Express and FastAPI fixtures
 ```

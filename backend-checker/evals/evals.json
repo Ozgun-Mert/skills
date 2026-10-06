@@ -1,0 +1,61 @@
+{
+  "skill_name": "backend-checker",
+  "harness": "Each eval runs non-interactively against a fresh copy of a fixture project built by backend-checker-workspace/make_fixtures.py (each fixture is its own git repo with history). Skills are staged with install.ps1 -Destination. The user is not available, so 4a questions are answered from scripted_answers through findings.py decide.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "security-express-pg",
+      "fixture": "express-pg",
+      "skill": "check-backend-security",
+      "prompt": "/check-backend-security api web",
+      "baseline_prompt": "Do a thorough security audit of the backend in api/ (the frontend is in web/) and write it to docs/SECURITY_PROBLEMS.md. Check dependencies and their versions for known vulnerabilities, secrets in git or exposed to the frontend, SQL injection, authorization, data privacy, uploads, CORS, headers, rate limiting, idempotency, error messages, and run the test suite. Give a simple fix for each problem. Don't change any code.",
+      "scripted_answers": "If asked whether admins may create or delete other admins: 'Not intended – report'. Any other 4a question: 'Not sure – report as Low'.",
+      "expected_output": "docs/SECURITY_PROBLEMS.md only (no CODE_QUALITY.md) with the 21 numbered sections; vulnerable express/jsonwebtoken/lodash/multer/socket.io/moment with closest safe versions and Node 16 EOL; committed api/.env and web/.env (VITE_STRIPE_SECRET_KEY exposed to the frontend), secrets masked; SQL injection in /menu/search incl. ORDER BY; mass assignment in PUT /menu/items/:id; IDOR on menu items/orders/restaurants; client-sent prices in calcTotal; plaintext passwords; password returned on login/register; jwt.decode instead of verify and no expiry; Math.random reset token logged; wildcard CORS with credentials (HTTP + socket.io); no helmet; no rate limit; double payment on /orders/:id/pay; enumeration messages; err.stack leaked; upload with original filename and no type check; path traversal in /uploads/file; N+1 in GET /menu/:restaurantId; delete restaurant without FK handling; missing transaction in order creation; tests run with 2 failures explained; .gitignore updated; no source files modified.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "quality-fastapi-shop",
+      "fixture": "fastapi-shop",
+      "skill": "check-backend-code-quality",
+      "prompt": "/check-backend-code-quality app",
+      "baseline_prompt": "Review the backend in app/ for code quality and write docs/CODE_QUALITY.md: repetitive code that could be one function, inputs that should have interfaces/typed contracts, and how easy it is to add new things (e.g. a new payment method). Suggest a plan for each, don't write code and don't change any code.",
+      "scripted_answers": "(none needed)",
+      "expected_output": "docs/CODE_QUALITY.md only (no SECURITY_PROBLEMS.md) with 10 sections and a refactor roadmap; duplicated product listing/mapping in products.py; payment provider if/elif chain and refund chain → provider strategy/registry; notification channel chain; `data: dict` inputs → Pydantic models; long checkout function; dead code legacy_discount + commented-out block + unused deps; magic numbers 1.18/0.18/20/50; inconsistent errors (HTTPException vs {'error'}) and response shapes (inStock vs in_stock, camelCase orderId); hardcoded engine/stripe client/SMTP; plans with no code; no security findings; .gitignore updated; no source files modified.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "health-fastapi-shop",
+      "fixture": "fastapi-shop",
+      "skill": "check-backend-health",
+      "prompt": "/check-backend-health app",
+      "baseline_prompt": "Do a full backend health check of app/: write a security audit to docs/SECURITY_PROBLEMS.md and a code-quality review to docs/CODE_QUALITY.md. Use two parallel agents and keep it token-efficient. Don't change any code.",
+      "scripted_answers": "Any 4a question: 'Not sure – report as Low'.",
+      "expected_output": "Both reports; security: vulnerable fastapi/PyJWT/python-multipart/Jinja2/requests + Python 3.7 EOL, .env.production in git history (rotate), hardcoded DB password and SECRET_KEY, SQL injection via text(f''), IDOR on GET /orders/{id}, client prices in checkout, md5 passwords, password_hash returned, jwt 'none' algorithm and no expiry, CORS * with credentials, debug=True, no rate limit, no transaction/race on stock, SSRF via webhook_url, card data printed, 'Test suite should be implemented.'; code quality as in eval 2; index built once, agents forked or run in parallel, single reply with counts.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "security-fastapi-shop",
+      "fixture": "fastapi-shop",
+      "skill": "check-backend-security",
+      "prompt": "/check-backend-security app",
+      "baseline_prompt": "Do a thorough security audit of the backend in app/ and write it to docs/SECURITY_PROBLEMS.md. Check dependencies and their versions for known vulnerabilities, secrets in git, SQL injection, authorization, data privacy, CORS, headers, rate limiting, idempotency, error messages, and run the test suite if there is one. Give a simple fix for each problem. Don't change any code.",
+      "scripted_answers": "Any 4a question: 'Not sure – report as Low'.",
+      "expected_output": "Only docs/SECURITY_PROBLEMS.md. Same security expectations as eval 3. Its tokens + eval 2's tokens are the 'two single commands back to back' cost to compare against eval 3 (health).",
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "incremental-health-fastapi",
+      "fixture": "state left by eval 3 (with skill) + the SQL injection in app/routers/products.py fixed (uncommitted)",
+      "skill": "check-backend-health",
+      "prompt": "/check-backend-health app",
+      "baseline_prompt": "I fixed the SQL injection in product search. Re-run the full backend health check of app/ and update docs/SECURITY_PROBLEMS.md and docs/CODE_QUALITY.md (they are from the previous run). Keep it token-efficient. Don't change any code.",
+      "scripted_answers": "Any 4a question: 'Not sure – report as Low'. The WELCOME10 coupon question was already answered in the previous run and must not be asked again.",
+      "expected_output": "Incremental run: only products.py (and files importing it) re-analyzed, other findings carried over; the SQL injection finding is gone entirely (no 'fixed' section); no 4a question re-asked; header says incremental; far fewer tokens than eval 3.",
+      "files": []
+    }
+  ]
+}

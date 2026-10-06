@@ -1,0 +1,42 @@
+{
+  "title": "Security problems",
+  "scale": "severity",
+  "levels": ["Critical", "High", "Medium", "Low"],
+  "groups": [
+    {"id": "1", "title": "Dependencies & secrets"},
+    {"id": "2", "title": "Database"},
+    {"id": "4", "title": "Logic"},
+    {"id": "5", "title": "Data privacy & authorization"},
+    {"id": "6", "title": "Data security"}
+  ],
+  "sections": [
+    {"id": "1a", "group": "1", "title": "Vulnerable or end-of-life language/library versions"},
+    {"id": "1b", "group": "1", "title": "Secrets in git or visible to the frontend"},
+    {"id": "2a", "group": "2", "title": "SQL / NoSQL injection"},
+    {"id": "2b", "group": "2", "title": "Illogical or unsafe data operations (FKs, cascades, missing transactions)"},
+    {"id": "2c", "group": "2", "title": "Unnecessary database work (N+1, over-fetching, query optimization)"},
+    {"id": "3", "title": "Test suite"},
+    {"id": "4a", "group": "4", "title": "Questionable business rules"},
+    {"id": "4b", "group": "4", "title": "Logic that can crash or corrupt the system"},
+    {"id": "5a", "group": "5", "title": "Access to other users' data (IDOR, mass assignment)"},
+    {"id": "5b", "group": "5", "title": "Trusting values sent by the frontend"},
+    {"id": "6a", "group": "6", "title": "Sensitive data not protected at rest"},
+    {"id": "6b", "group": "6", "title": "Responses returning unnecessary data"},
+    {"id": "6c", "group": "6", "title": "Weak cryptography"},
+    {"id": "7", "title": "Upload security"},
+    {"id": "8", "title": "CORS (HTTP and WebSocket)"},
+    {"id": "9", "title": "HTTP security headers"},
+    {"id": "10", "title": "Rate limiting"},
+    {"id": "11", "title": "Idempotency / double submission"},
+    {"id": "12", "title": "Responses that reveal too much"},
+    {"id": "13", "title": "Helmet or framework equivalent"},
+    {"id": "14", "title": "Authentication & sessions"},
+    {"id": "15", "title": "Input validation & request limits"},
+    {"id": "16", "title": "Other injection (command, path traversal, SSRF, prototype pollution, ReDoS, deserialization)"},
+    {"id": "17", "title": "CSRF"},
+    {"id": "18", "title": "Error leakage & misconfiguration"},
+    {"id": "19", "title": "Sensitive data in logs"},
+    {"id": "20", "title": "Payments & webhooks"},
+    {"id": "21", "title": "WebSocket authentication & authorization"}
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "title": "Code quality",
+  "scale": "impact",
+  "levels": ["High", "Medium", "Low"],
+  "efforts": ["S", "M", "L"],
+  "roadmap": true,
+  "groups": [],
+  "sections": [
+    {"id": "1", "title": "Repetitive code"},
+    {"id": "2", "title": "Interfaces / typed input contracts"},
+    {"id": "3", "title": "Extensibility (adding a new variant)"},
+    {"id": "4", "title": "Long functions, long files, deep nesting"},
+    {"id": "5", "title": "Dead code"},
+    {"id": "6", "title": "Magic numbers and strings"},
+    {"id": "7", "title": "Error-handling consistency"},
+    {"id": "8", "title": "API response & naming consistency"},
+    {"id": "9", "title": "Hardcoded dependencies / testability"},
+    {"id": "10", "title": "Weak and duplicated types"}
+  ]
+}

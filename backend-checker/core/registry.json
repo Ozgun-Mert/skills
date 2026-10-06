@@ -1,0 +1,59 @@
+{
+  "_doc": "Every backend check. /check-backend-health runs all entries. To add a check: write core/agents/<id>.md, core/references/sections-<id>.json, add an entry here, and add skills/check-backend-<id>/SKILL.md. See README 'How to add a check'.",
+  "checks": [
+    {
+      "id": "security",
+      "command": "check-backend-security",
+      "title": "Security problems",
+      "agent_brief": "agents/security.md",
+      "sections_file": "references/sections-security.json",
+      "output_md": "docs/SECURITY_PROBLEMS.md",
+      "findings_json": "docs/.backend-checks/findings-security.json",
+      "scale": "severity",
+      "hotspot_keys": ["routes", "db", "raw_sql", "mass_assignment", "trusts_client", "uploads", "cors", "headers",
+                       "rate_limit", "websocket", "auth", "crypto", "payments", "logging", "error_handler",
+                       "validation", "injection", "cache", "secrets"],
+      "extra_hotspot_keys": ["secrets", "frontend_env", "client_values"],
+      "needs_tests": true,
+      "prep": [
+        {"script": "osv_check.py", "args": [], "when_sections": ["1a"]}
+      ],
+      "cross_cutting_sections": {
+        "1a": ["manifests", "osv_stale"],
+        "1b": ["secrets", "extra", "config"],
+        "8": ["cors", "websocket"],
+        "9": ["headers", "config"],
+        "10": ["rate_limit", "routes"],
+        "13": ["headers"],
+        "14": ["auth"],
+        "17": ["auth"],
+        "18": ["error_handler", "config"],
+        "21": ["websocket"]
+      }
+    },
+    {
+      "id": "code-quality",
+      "command": "check-backend-code-quality",
+      "title": "Code quality",
+      "agent_brief": "agents/code-quality.md",
+      "sections_file": "references/sections-code-quality.json",
+      "output_md": "docs/CODE_QUALITY.md",
+      "findings_json": "docs/.backend-checks/findings-code-quality.json",
+      "scale": "impact",
+      "hotspot_keys": ["routes", "type_switch", "error_handler", "db"],
+      "extra_hotspot_keys": ["types"],
+      "needs_tests": false,
+      "prep": [
+        {"script": "dupes.py", "args": [], "when_sections": ["*"]},
+        {"script": "quality_scan.py", "args": [], "when_sections": ["*"]}
+      ],
+      "cross_cutting_sections": {
+        "1": ["any"],
+        "5": ["any"],
+        "7": ["error_handler"],
+        "8": ["routes"],
+        "10": ["extra", "types"]
+      }
+    }
+  ]
+}
