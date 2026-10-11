@@ -8,6 +8,7 @@ script copies it into `~/.claude/skills/` so the slash command works in every pr
 | [stock-analyzer](stock-analyzer/) | `/analyze-stock` | Data-driven, multi-agent stock analysis with a shareable dashboard |
 | [seo-optimizer](seo-optimizer/) | `/optimize-seo` | People-first SEO: keyword research, intent → page map, pages and technical SEO, with approval at every step |
 | [backend-checker](backend-checker/) | `/check-backend-security` · `/check-backend-code-quality` · `/check-backend-health` | Backend security audit and code-quality review as gitignored reports in `docs/`, incremental and token-efficient |
+| [make-no-mistakes](make-no-mistakes/) | `/make-no-mistakes` | Researches, interviews you, plans in detail, then builds the whole app (or a feature) with parallel headless `/goal` workers, a mandatory security gate and SEO-ready UI |
 
 ---
 
@@ -433,4 +434,153 @@ backend-checker/
 │   └── scripts/               # index, plan, bundle, osv_check, dupes, quality_scan, run_tests,
 │                              # findings (merge/questions/decide/render), ensure_gitignore
 └── evals/evals.json           # scenarios on seeded Express and FastAPI fixtures
+```
+
+---
+
+## make-no-mistakes — `/make-no-mistakes`
+
+```
+/make-no-mistakes build me an app for learning german
+/make-no-mistakes add sharing notes with other users
+/make-no-mistakes
+```
+
+Give it a one-line idea in an empty folder, and it plans and builds the whole app. Run it inside an
+existing project and it adds the feature, touching only the files it needs. With no argument it
+resumes the last run from `mnm/state.json`.
+
+### How a run works
+
+| Phase | What | You |
+|---|---|---|
+| 0 Preflight | Checks Claude Code ≥ 2.1.259, adds `/mnm/` and `.env*` to `.gitignore`. Existing project: `repo_map.py` maps the repo **once** | — |
+| 1 Research | Parallel web searches: similar products, their features, user complaints, best practices → `mnm/research.md` | — |
+| 2 Interview | Every competitor feature: **Yes / No / Yes, with a tweak** (type the tweak). Then detail rounds with recommended options: roles, sign-in, **who can see what**, monetization, languages, devices, compliance, **UI style (Professional / Balanced / Fun)**. An open "what else?" question only if your idea is vague | Click options, rarely type |
+| 3 Architecture | Picks the stack itself (never asks): backend by workload, frontend by page count. Writes `mnm/spec.md` (acceptance criteria, data model, access-control matrix, pages, design tokens) and `mnm/contracts/openapi.yaml` | — |
+| 4 Plan | Splits the work into `/goal`-ready prompts in `mnm/prompts/` (`foundationprompt.md`, `backendprompt.md`, `frontendprompt.md`, `securityprompt.md`, `integrationprompt.md`, `qa.md`, + payments/admin/i18n… when needed), validated and ordered into waves | Choose the worker permission mode |
+| 5 Build | Each piece runs as a headless `claude -p "/goal …"` worker, pieces in a wave in parallel. Workers never block: they take the recommended option and file a question, which the orchestrator asks you while they keep working | Answer questions as they come |
+| 6 Security gate | Hotspot scan + a fresh security worker + an isolation test for every endpoint × actor (owner, other user, anonymous, other tenant). The orchestrator reruns the tests itself | — |
+| 7 Verify | Integration, Playwright e2e, raw-HTML SEO crawl, browser smoke test at 390/1280 px | — |
+| 8 Report | What was built, how to run it, security results, assumptions, placeholders, ideas | — |
+
+### Stack it picks
+
+| Size (scored from the spec) | Backend |
+|---|---|
+| Small (simple CRUD) | Python + FastAPI, SQLAlchemy 2, Alembic |
+| Medium (roles, payments, jobs, realtime…) | Bun + TypeScript, Hono, Drizzle, Zod |
+| Large (many domains, high scale) | Go, chi, sqlc, pgx |
+
+The database is always PostgreSQL with Row-Level Security, and auth is server-side sessions with
+argon2id. The frontend is **SvelteKit** for ≤ ~8 page types and **Next.js** App Router for bigger
+apps; both are server-rendered for SEO. In an existing project the stack is kept as it is.
+
+### Why `/goal` workers are separate processes
+
+`/goal` is a session slash command. In-session subagents can't run it, but headless sessions can:
+`claude -p "/goal <condition>"` loops until a separate evaluator model judges the condition met.
+`launch_worker.py`:
+- starts one such session per piece
+- appends `references/worker-contract.md` to its system prompt
+- logs stream-json to `mnm/logs/`
+- reads the evaluator's verdict from the session transcript (`goal_status` records)
+- with `--resume --message`, sends fix-ups into the same session, so the worker doesn't re-read
+  anything
+
+The orchestrator (your interactive session) stays free to ask you worker questions.
+
+### Token efficiency
+
+- One repo pass (`repo_map.py`) instead of every agent exploring.
+- Research is done once and copied into each prompt as short excerpts.
+- The API contract is written before workers start, so backend and frontend never read each
+  other's code.
+- Every prompt has a **context pack** (exact files and line ranges) and **ownership** globs.
+  `validate_prompts.py --check-ownership` flags any file a worker touched outside them.
+- The orchestrator reads compact `worker_status.py` summaries and short reports, never raw logs.
+
+### Outputs (all in `mnm/`, gitignored)
+
+| Path | Content |
+|---|---|
+| `research.md`, `decisions.md` | Competitors, feature catalog, best practices; every answer and stack decision |
+| `spec.md`, `contracts/openapi.yaml` | The single source of truth for workers |
+| `prompts/*.md` | One `/goal` brief per piece (goal condition, context pack, ownership, acceptance, best practices, report format) |
+| `reports/<piece>.md` | Each worker's acceptance table with proof commands; `reports/security.md` |
+| `questions/`, `answers/`, `assumptions.md` | Worker ↔ user Q&A and the defaults workers took |
+| `state.json`, `logs/` | Waves, statuses, session ids, costs; raw worker logs |
+| `repo-map.md`, `security-hotspots.json`, `seo-check.json` | Script outputs |
+
+The app itself goes in `backend/`, `frontend/`, `e2e/`, plus `docker-compose.yml`, `.env.example`
+and `README.md`. Nothing is committed: the skill never runs git commands that change anything.
+
+### Install
+
+Requires Claude Code ≥ 2.1.259 (headless `/goal` and `--permission-prompts`), Python 3.10+
+(standard library only) and Windows PowerShell.
+
+```bash
+powershell -ExecutionPolicy Bypass -File make-no-mistakes/install.ps1
+```
+
+This copies the skill to `%USERPROFILE%\.claude\skills\make-no-mistakes\`. Re-run it after editing
+anything in `make-no-mistakes/`, then start a new Claude Code session to pick up the command.
+
+### Running the scripts directly
+
+| Script | What it does |
+|---|---|
+| `ensure_gitignore.py` | Adds `/mnm/`, `.env`, `.env.*`, `!.env.example` once; verifies with `git check-ignore` |
+| `repo_map.py` | One-pass map of an existing repo: packages, stack, scripts, tree with line counts, pages, API routes, models, auth files, tests, env vars → `mnm/repo-map.md` |
+| `validate_prompts.py` | Lints `mnm/prompts/` (sections, condition ≤ 4,000 chars, unknown deps, cycles, ownership overlaps between pieces that can run together) and prints the waves. `--check-ownership <piece>` lists files changed outside a piece's ownership |
+| `launch_worker.py` | Runs one piece as `claude -p "/goal …"`. Resolves the real `claude.exe` behind the npm `.cmd` shim so multi-line prompts survive. `--resume --message` for fix-ups |
+| `worker_status.py` | Overview, `--piece` detail (verdict, turns, cost, last message), `--questions`, `--watch` (for the Monitor tool) |
+| `security_scan.py` | Hotspots: routes without auth, by-id queries without owner scope, client-sent owner/role/price, string-built SQL, hard-coded secrets, wildcard CORS, error leaks, weak hashing, XSS sinks, missing headers/rate limits |
+| `seo_check.py` | Raw-HTML crawl: titles, descriptions, H1, canonical, lang, viewport, OG, alt, JSON-LD, robots.txt, sitemap.xml, orphans, soft 404s, placeholders |
+
+```bash
+python make-no-mistakes/scripts/validate_prompts.py --root path/to/project
+```
+
+```bash
+python make-no-mistakes/scripts/launch_worker.py --root path/to/project --piece backend --mode auto --dry-run
+```
+
+```bash
+python make-no-mistakes/scripts/security_scan.py --root path/to/project --api backend --frontend frontend
+```
+
+```bash
+python make-no-mistakes/scripts/seo_check.py http://localhost:3000 --sitemap --root path/to/project
+```
+
+### Known limitations
+
+- Workers run unattended. Auto mode needs a plan that supports it; otherwise use accept-edits mode
+  with the built-in build/test allowlist. Anything that would prompt is denied, and the worker is
+  told so.
+- **Never start a worker by typing `claude -p "/goal …"` in Git Bash.** MSYS rewrites `/goal` into
+  a Windows path, so no goal gets set. `launch_worker.py` calls the executable directly.
+- The `/goal` evaluator only sees the transcript. Conditions therefore require printed proof (test
+  output, the ownership check, the report printed with `cat`).
+- The security scan and SEO crawl are heuristics that point reviewers at code. The isolation test
+  matrix and the security worker's review are what the gate relies on.
+- Real OAuth, payment and email credentials are left as `.env.example` placeholders, and anything
+  that needs a live deployment (Core Web Vitals, real email delivery) is reported as pending.
+- Generated legal pages carry an "AI-generated draft" banner and need a lawyer's review.
+
+### Layout
+
+```
+make-no-mistakes/
+├── SKILL.md                # the skill (name: make-no-mistakes)
+├── make-no-mistakes.md     # copy of SKILL.md, kept in sync by install.ps1
+├── install.ps1
+├── references/             # research, interview, stack selection, prompt format, worker contract,
+│                           # security gate, frontend quality + SEO, existing-project mode
+├── templates/              # spec.md and piece-prompt.md skeletons
+├── scripts/                # common, ensure_gitignore, repo_map, validate_prompts, launch_worker,
+│                           # worker_status, security_scan, seo_check
+└── evals/evals.json        # scenarios with scripted answers
 ```

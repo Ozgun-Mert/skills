@@ -1,0 +1,42 @@
+{
+  "skill_name": "make-no-mistakes",
+  "harness": "Each eval runs against a copy of a fixture folder. User answers are scripted in the prompt; a question with no scripted answer must be written to outputs/conversation.md under '## WAITING FOR USER' and the run stops there. Evals 1, 2 and 3 stop after Phase 4 (prompts validated, workers NOT launched) unless 'launch: yes' is scripted, so they are cheap to rerun. Eval 4 launches only the security piece.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "empty-folder-german-app",
+      "fixture": "empty-folder",
+      "prompt": "/make-no-mistakes build me an app for learning german",
+      "scripted_answers": "Features: answer Yes to every table-stakes feature; for spaced-repetition flashcards pick 'Yes, with a tweak': 'users can add their own cards with an example sentence'; No to leaderboards and No to live tutoring; Yes to speaking practice. Users: individuals (B2C), roles user + admin. Sign-in: email + Google. Data sharing: decks private to owner, but a user can share a deck by link (view only); progress always private. Public pages: landing + pricing + blog. Monetization: free + paid plan, prices unknown (placeholders). Content: we provide starter decks (placeholders) + users create their own. Admin: simple admin page. Notifications: email reminders. Languages: English UI. Devices: responsive + PWA. Compliance: GDPR. Brand: pick a placeholder name, pick colors for me. UI style: Fun. Scope: full. Scale: growing. Confirm: Build this. Worker mode: Stop here.",
+      "expected_output": "mnm/research.md with competitors (e.g. Duolingo, Anki, Babbel, Memrise) and a feature catalog with sources; feature questions asked with exactly the three options Yes / No / Yes, with a tweak; the UI-style question asked; NO question about language, framework, database or hosting; mnm/decisions.md records the stack with a reason (backend sized by the rubric; frontend Next.js because > 8 page types, or SvelteKit with a stated page count); mnm/spec.md with an access-control matrix that makes decks owner-only except share-by-link view and progress always private; mnm/contracts/openapi.yaml; mnm/prompts/foundationprompt.md, backendprompt.md, frontendprompt.md, securityprompt.md, integrationprompt.md, qa.md (+ payments/notifications/admin pieces) that pass validate_prompts.py with 0 errors; .gitignore contains /mnm/; no git commands that change state; stops before launching workers.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "vague-idea-open-question",
+      "fixture": "empty-folder",
+      "prompt": "/make-no-mistakes make me an app for my business",
+      "scripted_answers": "(none: the user has not said anything yet)",
+      "expected_output": "Because the idea is too vague to research, the skill asks the open text question (what the business is / what else it should do) and waits; it does not invent a product, does not pick a stack, and writes nothing but .gitignore and mnm/state.json.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "existing-fastapi-sveltekit-add-feature",
+      "fixture": "fastapi-sveltekit-notes",
+      "prompt": "/make-no-mistakes add sharing notes with other users (view or edit)",
+      "scripted_answers": "Feature options: Yes to share by email invite; Yes, with a tweak to share links: 'links expire after 7 days'; No to public notes. Permission levels: view and edit. Notifications: email the invitee. Confirm: Build this. Worker mode: Stop here.",
+      "expected_output": "repo_map.py run once; mnm/feature-context.md lists ~15 files max with line ranges; the existing stack (FastAPI + SvelteKit) is kept, no new framework; the spec adds share tables + access-control rows (owner, editor, viewer, other user, anonymous); pieces only for backend-sharing, frontend-sharing, security-sharing, qa-sharing with FILE-level ownership (no 'backend/**'); every context pack says not to explore; validate_prompts.py passes; UI style not asked (app already has one).",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "security-gate-catches-idor",
+      "fixture": "fastapi-seeded-idor",
+      "prompt": "Continue /make-no-mistakes from mnm/state.json (phase: security). Worker mode: auto.",
+      "scripted_answers": "Launch: yes (security piece only).",
+      "expected_output": "security_scan.py flags the unauthenticated GET /decks/{id}, the unscoped db.get, the f-string SQL, owner_id taken from the request body and the wildcard CORS; the security worker writes mnm/reports/security.md with these as Critical/High, fixes them, adds an isolation test matrix (endpoints x owner/other user/anonymous) that passes, and the orchestrator reruns the isolation suite itself before marking the gate passed.",
+      "files": []
+    }
+  ]
+}
