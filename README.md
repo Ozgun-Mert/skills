@@ -9,6 +9,7 @@ script copies it into `~/.claude/skills/` so the slash command works in every pr
 | [seo-optimizer](seo-optimizer/) | `/optimize-seo` | People-first SEO: keyword research, intent → page map, pages and technical SEO, with approval at every step |
 | [backend-checker](backend-checker/) | `/check-backend-security` · `/check-backend-code-quality` · `/check-backend-health` | Backend security audit and code-quality review as gitignored reports in `docs/`, incremental and token-efficient |
 | [make-no-mistakes](make-no-mistakes/) | `/make-no-mistakes` | Researches, interviews you, plans in detail, then builds the whole app (or a feature) with parallel headless `/goal` workers, a mandatory security gate and SEO-ready UI |
+| [frontend-developer](frontend-developer/) | `/develop-frontend` | Builds a frontend with award-level UI/UX: finds the project brief and backend contract (or mocks it), researches similar sites, lets you pick a style per segment, then iterates with a screenshot-only "user" agent and a "front" agent until the user has no complaints |
 
 ---
 
@@ -582,5 +583,112 @@ make-no-mistakes/
 ├── templates/              # spec.md and piece-prompt.md skeletons
 ├── scripts/                # common, ensure_gitignore, repo_map, validate_prompts, launch_worker,
 │                           # worker_status, security_scan, seo_check
+└── evals/evals.json        # scenarios with scripted answers
+```
+
+---
+
+## frontend-developer — `/develop-frontend`
+
+```
+/develop-frontend
+/develop-frontend docs/FRONTEND.md
+/develop-frontend https://example.com/api-docs QR menu and table ordering for restaurants in Turkey
+```
+
+Run it in a project folder. It works out what the project is and how the frontend gets its data, then
+researches and plans with you, builds the frontend, and polishes it in rounds. A "user" agent that has
+never seen the site tries real tasks through screenshots, and a "front" agent fixes everything that
+user found broken, confusing, wordy or ugly. The rounds stop when the user has no complaints left.
+
+### How a run works
+
+| Phase | What | You |
+|---|---|---|
+| 0 Preflight | Adds `/DESIGN/` to `.gitignore` (always, in every project), checks Playwright, resumes from `DESIGN/.work/state.json` | — |
+| 1 Context | `find_docs.py` ranks every .md/.txt as the **project description** and as the **backend contract**. Uses `PROJECT.md` / `FRONTEND.md`, a link, or the best match. No contract → asks **Yes / Not implemented / No**. Not implemented = builds against a mock layer behind the same API client and writes `FRONTEND.md` for the backend developer | Describe the project if nothing is found; answer the backend question |
+| 2 Research | Web searches in English **and** the local language (e.g. Wolt + Yemeksepeti + QR-menu products for a Turkish QR menu) → `DESIGN/similar-sites.md`, `ux-patterns.md`, `normal-polished.md`, `brand.md` (our own fonts and palette, different from competitors, contrast-checked). Skipped when `DESIGN/` already has it | — |
+| 3 Styles | One question per segment (landing, panels, catalog, checkout, blog, docs…): **Fancy / Normal / Strict / Playful** | Pick a style per segment |
+| 4 Plan | Page plan (route, purpose, style, data, components, states) + task table | Approve or change |
+| 5 Build | Tokens, components, API client (real or mock, with `?mock=empty` / `?mock=error`), pages with loading/empty/error/success states | — |
+| 6 Review loop | Each round: a **fresh user agent** (persona from your real users, goal-only tasks, sees only `shoot.py` / `browse.py` / `ui_audit.py` screenshots) writes `user-report.md`; the **front agent** fixes root causes citing UX principles and writes `front-report.md`; the main agent arbitrates rejections. Repeats until there are no complaints and every plan task is done (check-in after round 6) | Only if asked to continue after round 6 |
+| 7 Final check | Build/lint/typecheck/tests, `ui_audit --fail-on major` on every route and width, final screenshots, flows replayed, no leftovers | Read the report |
+
+### Design knowledge it ships with (`design/`)
+
+| File | From |
+|---|---|
+| `fancy.md` | Awwwards Sites of the Year / Month / Day up to Oct 2026: palettes, fonts (read from the live sites), motion stack (GSAP, Lenis, WebGL), layout patterns, plus a "fancy but usable" contract |
+| `normal.md` | Conventions from the most-visited sites (Google, YouTube, Amazon, Instagram, ChatGPT, Wikipedia…) and big design systems. General rules, polished per project |
+| `strict.md` | GOV.UK, Wikipedia, Stripe/MDN docs and editorial sites: content-first reading and forms |
+| `playful.md` | Duolingo, Headspace, Notion marketing and similar sites: friendly, colorful, rewarding |
+| `ux-principles.md` | Nielsen's 10 heuristics, Laws of UX, signifiers, visual-integrity rules, WCAG 2.2 AA, Baymard checkout 2025, wordiness. Each has an ID the front agent cites |
+
+### What you get (all in `DESIGN/`, gitignored)
+
+| Path | Content |
+|---|---|
+| `project.md`, `README.md` | What the product is, where its data comes from; index |
+| `similar-sites.md`, `ux-patterns.md`, `normal-polished.md`, `brand.md` | Research and identity, reused by later runs |
+| `styles.md`, `plan.md` | Style per segment; page plan, task table, review-round log |
+| `.work/reviews/round-N/` | `tasks.md`, the user's screenshots, `steps.json`, annotated audit, `user-report.md`, `front-report.md` |
+| `.work/final/` | Final audit and screenshots |
+
+The frontend code goes into the project as usual, plus `FRONTEND.md` in mock mode.
+
+### Install
+
+Requires Python 3.10+ and Playwright with Chromium (installed by the script).
+
+```bash
+powershell -ExecutionPolicy Bypass -File frontend-developer/install.ps1
+```
+
+This copies the skill to `%USERPROFILE%\.claude\skills\develop-frontend\` and installs Playwright.
+Re-run it after editing anything in `frontend-developer/`, then start a new Claude Code session.
+
+### Running the scripts directly
+
+| Script | What it does |
+|---|---|
+| `ensure_gitignore.py` | Adds `/DESIGN/` once, verifies with `git check-ignore`, reports DESIGN files git already tracks |
+| `find_docs.py` | Ranks .md/.txt files as project description / backend contract (English and Turkish signals), skipping dependencies and build output |
+| `shoot.py` | Full-page screenshots of routes × widths (360/390/768/1280/1440), plus status, console errors and failed requests |
+| `browse.py` | Replays a JSON step list (goto, click by text/role/label/coordinates, fill, select, scroll, expect…), screenshots each step, prints the visible text and the clickable elements with their cursor |
+| `ui_audit.py` | Measures defects: sideways overflow, missing pointer cursor (detects React/Vue/Svelte click handlers), clickable divs, uneven sibling buttons (one label wrapping to 2 lines), uneven cards, small targets, covered elements, clipped text, contrast, broken/stretched/alt-less images, headings, too many fonts, JS/HTTP errors, word counts. `--annotate` draws numbered boxes on screenshots; `--fail-on major` for gates |
+
+Routes can be passed with `--routes "/,/menu"` or `--routes-file`. A line like `/missing [404]` means the
+route is expected to return 404.
+
+```bash
+python frontend-developer/scripts/ui_audit.py --url http://localhost:5173 --routes-file DESIGN/.work/routes.txt --out audit --annotate
+```
+
+```bash
+python frontend-developer/scripts/browse.py --url http://localhost:5173 --steps steps.json --out run --width 390
+```
+
+### Known limitations
+
+- The user agent judges from screenshots and the browse output, so animations, sound and hover-only
+  effects are judged from still frames.
+- `ui_audit.py` is a heuristic. The user agent confirms each hint on the screenshots before reporting
+  it, and the main agent checks the cited screenshots for script artefacts.
+- Award-site fonts (Suisse, GT, Diatype…) are commercial. `fancy.md` maps them to free alternatives.
+- In Git Bash a `/route` argument is rewritten to `C:/Program Files/Git/route`. The scripts undo it,
+  but `--routes-file` avoids the problem.
+
+### Layout
+
+```
+frontend-developer/
+├── SKILL.md                # the skill (name: develop-frontend)
+├── develop-frontend.md     # copy of SKILL.md, kept in sync by install.ps1
+├── install.ps1, requirements.txt
+├── design/                 # baseline: fancy, normal, strict, playful, ux-principles, sources
+├── references/             # context discovery, project research, interview, plan format, build,
+│                           # persona-user, persona-front, review loop, final check
+├── templates/              # FRONTEND.md, plan.md, user-report.md, front-report.md
+├── scripts/                # common, ensure_gitignore, find_docs, shoot, browse, ui_audit
 └── evals/evals.json        # scenarios with scripted answers
 ```

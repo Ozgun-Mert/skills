@@ -1,0 +1,51 @@
+{
+  "skill_name": "develop-frontend",
+  "harness": "Each eval runs against a copy of a fixture folder. User answers are scripted in the prompt; a question with no scripted answer must be written to outputs/conversation.md under '## WAITING FOR USER' and the run stops there. Playwright + Chromium are installed. Evals 1–4 stop after Phase 4 (plan approved) unless 'build: yes' is scripted, so they are cheap to rerun; eval 5 runs only the review loop.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "qr-menu-not-implemented-backend",
+      "fixture": "empty-folder",
+      "prompt": "/develop-frontend QR kodlu menü ve masadan sipariş sistemi: müşteri masadaki QR'ı okutur, menüyü görür, sepete ekler, sipariş verir ve öder; restoran sahibi panelden menüyü ve gelen siparişleri yönetir. Türkiye pazarı.",
+      "scripted_answers": "Backend question: Not implemented yet. Styles: Landing → Fancy, Menu/catalog → Normal, Checkout → Normal, Restaurant panel → Normal, Blog → Strict. Mood: warm & appetizing. Plan: Start building. build: yes. Keep iterating until done.",
+      "expected_output": ".gitignore contains /DESIGN/ exactly once before any DESIGN file exists; find_docs.py run once; the backend question asked with exactly Yes / Not implemented / No options (Not implemented recommended); research queries in English AND Turkish naming Wolt, Yemeksepeti and at least one QR-menu product; DESIGN/similar-sites.md, ux-patterns.md, normal-polished.md, brand.md (fonts support ğ ş ı İ, palette differs from Yemeksepeti pink and Wolt blue, contrast ratios listed), README.md, styles.md, plan.md with page plan + task table; no question about framework; FRONTEND.md lists every mock client function with request/response; pages use one API client with API_MODE=mock and ?mock=empty / ?mock=error; prices formatted ₺ with tr-TR; at least one user/front round in DESIGN/.work/reviews/round-1 with user-report.md citing screenshots and front-report.md mapping each complaint to a fix with a principle ID; final ui_audit --fail-on major exits 0.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "api-doc-auto-detected",
+      "fixture": "repo-with-docs-api-md",
+      "prompt": "/develop-frontend",
+      "scripted_answers": "Styles: accept all recommendations. Plan: Stop after approval.",
+      "expected_output": "find_docs.py ranks docs/api.md as the backend contract and notes.txt as the project description; the skill reads them, does NOT ask the Yes/No/Not implemented question, records backend_mode=contract in DESIGN/.work/state.json, and the plan's Data column names the real endpoints (GET /api/menus/{restaurantId}, POST /api/orders, PATCH /api/orders/{id}) rather than mocks.",
+      "files": ["docs/api.md", "notes.txt", "README.md"]
+    },
+    {
+      "id": 3,
+      "name": "no-project-info-waits",
+      "fixture": "empty-folder",
+      "prompt": "/develop-frontend",
+      "scripted_answers": "(none)",
+      "expected_output": "With an empty folder and no arguments, the skill adds /DESIGN/ to .gitignore, then asks for the project folder or a description of what the project does and waits; it does not research, invent a product or ask the backend question yet.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "design-cache-reused",
+      "fixture": "repo-with-existing-DESIGN",
+      "prompt": "/develop-frontend add a blog section",
+      "scripted_answers": "Blog style: Strict. Plan: Stop after approval.",
+      "expected_output": "Because DESIGN/similar-sites.md, ux-patterns.md, brand.md and styles.md already exist for this project, no WebSearch is made; only the new segment (blog) is asked about; styles.md gains the blog row without changing the others; plan.md lists only blog pages/tasks plus shared changes.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "review-loop-catches-seeded-defects",
+      "fixture": "vite-site-with-seeded-defects",
+      "prompt": "Continue /develop-frontend from DESIGN/.work/state.json (phase: review).",
+      "scripted_answers": "Keep iterating.",
+      "expected_output": "Round 1 user subagent (fresh, no source access) reports: the two side-by-side buttons where one label wraps to two lines, the clickable div without a pointer cursor, horizontal scroll at 360px, low-contrast helper text and the image without alt, each with a screenshot path; the front subagent fixes them at the component level and cites V1/S3/V4/E principles; round 2 user (fresh persona) reports none of them; the loop stops when there are no complaints and all plan tasks are ticked; final ui_audit --fail-on major exits 0.",
+      "files": []
+    }
+  ]
+}
