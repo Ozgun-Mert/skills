@@ -7,6 +7,9 @@ whose job is to be *read* or *trusted*.
 Sources: the GOV.UK Design System, Wikipedia, Stripe and MDN docs, The New York Times and The
 Guardian article pages, Medium, and Butterick's *Practical Typography*. See `sources.md`.
 
+Components: shadcn/ui only (typography classes, table, accordion, alert, tabs, breadcrumb), with no React
+Bits motion (`component-kits.md` §7).
+
 The idea: **the design disappears and the content is the interface.** No decoration that doesn't
 help reading, finding or trusting.
 

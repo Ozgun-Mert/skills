@@ -5,24 +5,32 @@ true. You write this first version yourself. The front agent polishes it in the 
 
 ## 1. Stack
 
-**Existing frontend:** keep its framework, router, styling and component library. Add only what is
-missing, and prefer libraries already in the project.
+The UI is built from **shadcn/ui** and **React Bits** (`SKILL_DIR/design/component-kits.md`). Both are
+React kits, so new frontends are React.
+
+**Existing frontend:** keep its framework, router and styling, and never migrate.
+- React (Next.js, Vite, Remix/React Router, Astro + React): add shadcn/ui (`npx shadcn@latest init`) and
+  React Bits in place. If it already has another component library, keep it for existing screens and use
+  shadcn for new ones only when the two can share the tokens.
+- Vue/Nuxt: shadcn-vue + Vue Bits. Svelte/SvelteKit: shadcn-svelte, with the React Bits effects rebuilt
+  (`component-kits.md` §8).
 
 **No frontend yet:** decide with this rubric and don't ask the user.
 
 | Situation | Stack |
 |---|---|
-| Public pages that need SEO and ≤ 8 page types, mostly lists/forms | **SvelteKit** (Svelte 5) + TypeScript |
-| > 8 page types, or app-like (dashboards, editors, nested layouts) | **Next.js** App Router + TypeScript |
-| Mostly content/marketing (landing, blog, docs) with a few interactive islands | **Astro** + islands (React or Svelte) |
-| Internal tool behind login, no public pages | **Vite + React + TypeScript** (or SvelteKit with SSR off) |
+| Any public pages (landing, catalog, blog) or an app with public parts | **Next.js** App Router + TypeScript (`shadcn init -t next`) |
+| Mostly content/marketing (landing, blog, docs) with few interactive parts | **Astro** + React islands (`shadcn init -t astro`) |
+| Internal tool behind login, no public pages | **Vite + React + TypeScript** (`shadcn init -t vite`) |
 
 Defaults for all of them:
-- Tailwind CSS v4 reading the CSS variables from `brand.md` (`@theme`).
-- Zod for form validation.
-- Lucide icons (or the icon set in `brand.md`).
-- For Fancy segments: GSAP + ScrollTrigger and Lenis, loaded only on those routes. Three.js/OGL
-  only if `brand.md` calls for a 3D moment.
+- Tailwind CSS v4, with shadcn's CSS variables set from `brand.md` (`component-kits.md` §2).
+- shadcn/ui for every primitive (button, field, dialog, sheet, table, sidebar, sonner…); React Bits for
+  motion, in the amount the segment's style asks for (`component-kits.md`: Fancy = lots, Playful = many
+  micro-interactions, Normal = light, Strict = none).
+- Zod for form validation (with shadcn `field`); Lucide icons (shadcn's default) or the set in `brand.md`.
+- GSAP and `motion` come in through the React Bits components that need them. Add Lenis only for a Fancy
+  segment that needs smooth scrolling, and only once.
 - Package manager: the one whose lockfile is in the repo, otherwise `npm`.
 - Scripts named `dev`, `build`, `lint`, `check` (typecheck) and `test`.
 
@@ -30,8 +38,11 @@ Place the frontend in the repo root when it's frontend-only. Otherwise use `fron
 
 ## 2. Tokens and global styles (T1)
 
-- CSS custom properties for every token in `brand.md`: colors (light plus a `[data-theme=dark]` /
-  `prefers-color-scheme` block), font families, type scale, spacing, radius, shadows, motion.
+- Run `shadcn init` for the stack, then put every token from `brand.md` into `globals.css`. This means
+  shadcn's variables (`--background`, `--primary`, `--muted-foreground`, `--ring`, `--radius`,
+  `--chart-*`…, mapped as in `component-kits.md` §2) for `:root` and `.dark`, plus the brand's extra
+  tokens (type scale, spacing, shadows, motion durations and easing). Mirror the colors in
+  `lib/tokens.ts` so React Bits props can use them.
   Segment overrides for Fancy and Playful apply under a `data-style="fancy"` attribute on the segment's
   layout.
 - Self-hosted fonts (`@fontsource/*`, `next/font` or `font-display: swap` files), and preload the display
@@ -77,12 +88,17 @@ distrusted ("horses for a pide").
 
 ## 4. Components (T3)
 
-Build the shared set once from the tokens and reuse it everywhere:
-- button (primary, secondary, ghost, danger; sizes; loading state)
-- input, textarea, select, checkbox, radio, switch (all with label, hint and error)
-- card, badge, avatar, dialog/sheet, dropdown menu, tabs, toast, tooltip
-- table (with a mobile card mode), pagination, skeleton, empty state, error state, breadcrumb
-- layout shells
+Add the shadcn/ui components and blocks the plan names, then adjust them once to the tokens. Copied source
+is yours to edit. Cover at least:
+- button (variants plus a loading state), field, input, textarea, select, checkbox, radio-group, switch
+- card, badge, avatar, dialog, sheet, dropdown-menu, tabs, sonner, tooltip
+- table (plus the data-table recipe, with a mobile card mode), pagination, skeleton, empty, breadcrumb
+- sidebar / navigation-menu for the shells, plus the blocks that fit (`dashboard-01`, `login-0x`)
+
+Add the React Bits components the plan names for each page (`npx shadcn@latest add @react-bits/<Name>-TS-TW`,
+into `components/motion/`). Recolor them from the tokens, and wrap them with the shared reduced-motion helper
+(`components/motion/Motion.tsx`). Follow every rule in `component-kits.md` §3: nothing stuck invisible, one
+WebGL canvas in view, static fallbacks on mobile, `'use client'` leaves.
 
 Every interactive component has hover, focus-visible, active, disabled and loading states.
 
@@ -107,8 +123,12 @@ For each page, follow its segment's style file and `DESIGN/ux-patterns.md`:
 - Destructive actions use undo toasts or confirm dialogs that name the object.
 - Responsive from 360px. Check 360, 390, 768, 1280 and 1440.
 - Copy: short, specific, in the project's language. Missing facts use `{{PLACEHOLDER: name}}`.
-- Fancy segments: follow `fancy.md` with its non-negotiables. Lazy-load motion libraries and WebGL,
-  and keep the reduced-motion fallback.
+- Fancy segments: follow `fancy.md` and the **Fancy recipes in `component-kits.md` §4**. Every section
+  animates in; the hero has an animated headline, a background and a CTA micro-interaction; at least 8 React
+  Bits pieces per page, colored from the tokens. Lazy-load WebGL and keep the reduced-motion and mobile
+  fallbacks.
+- Playful segments: `playful.md` + `component-kits.md` §5 (micro-interactions on every control and
+  feedback moment). Normal segments: shadcn plus light motion (§6). Strict segments: no motion (§7).
 
 ## 6. FRONTEND.md (mock mode)
 
@@ -121,5 +141,5 @@ root, or next to the existing docs. It is the contract handed to the backend dev
 - `dev` runs with no errors in the terminal or the browser console.
 - `build`, `lint` and `check` pass, or the failures are listed and fixed now.
 - `python "SKILL_DIR/scripts/ui_audit.py" --url <dev-url> --routes-file DESIGN/.work/routes.txt --out DESIGN/.work/pre-review --fail-on blocker`
-  exits 0. Fix the majors it reports that are clearly real, so the user persona spends its attention on
+  exits 0, and it reports no `stuck-invisible` content (an entrance animation that never fires). Fix the majors it reports that are clearly real, so the user persona spends its attention on
   things only a human eye catches.

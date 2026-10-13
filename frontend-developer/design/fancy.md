@@ -82,10 +82,32 @@ from the competitors (see `brand.md` in the project):
 - **Marquees**: infinite horizontal bands of text or logos between sections.
 - Custom 404, preloader and footer are treated as design moments. Awwwards juries reward them.
 
-## 4. Motion
+## 4. Motion: lots of it, built from React Bits
 
 The stack seen on the winners: GSAP + ScrollTrigger + SplitText, Lenis smooth scroll, Barba
 page transitions, Three.js/OGL WebGL. Webflow, Nuxt, Next and Astro all appear.
+
+**We get the same effects from React Bits**, on top of shadcn/ui primitives. Recipes, install
+commands, theming and the performance rules are in `component-kits.md` §3–§4. A Fancy page should
+**never feel static**:
+- the headline animates in
+- a living background sits behind the hero
+- the CTA reacts to the cursor or click
+- every section has an entrance
+- there are at least 4 more moments down the page (bento cards, a logo loop, counters, a
+  gallery, testimonials, a cursor effect)
+
+That makes **8 or more React Bits pieces per Fancy page**, all in brand colors.
+
+| Pattern below | React Bits |
+|---|---|
+| Reveal on enter | AnimatedContent, FadeContent, ScrollReveal, ScrollFloat, SplitText, BlurText |
+| Kinetic / oversized type | SplitText, TextType, RotatingText, ShinyText, GradientText, ScrollVelocity, CurvedLoop, VariableProximity |
+| Hover and magnetic buttons | Magnet, StarBorder, GlareHover, SpecularButton, ClickSpark |
+| Custom cursor | TargetCursor, BlobCursor, GlowCursor (desktop only) |
+| 3D / WebGL scene | Aurora, Silk, LiquidEther, Beams, Iridescence, Galaxy, Prism, CircularGallery, DomeGallery |
+| Bento / cards | MagicBento, SpotlightCard, TiltedCard, BorderGlow, ChromaGrid |
+| Marquees | LogoLoop, ScrollVelocity |
 
 - **Smooth inertial scroll** (Lenis). Keep native scrollbars and keyboard scrolling working.
 - **Reveal on enter**: text lines mask-up, images clip-path/scale from 1.1→1, stagger 40–80ms.

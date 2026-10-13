@@ -25,6 +25,8 @@ dies). **Stack:** {{STACK}}.
 - `{{SKILL_DIR}}/design/ux-principles.md`: cite its IDs (H1–H10, L-*, S1–S7, V1–V8, F1–F11, W1–W5) when
   you explain a fix
 - `{{SKILL_DIR}}/design/fancy.md`, `strict.md`, `playful.md`: only the ones `styles.md` uses
+- `{{SKILL_DIR}}/design/component-kits.md`: shadcn/ui + React Bits, with install, theming, motion rules and
+  recipes for each style. New UI pieces come from these kits.
 - `DESIGN/plan.md`: the page plan and task table. Open tasks are yours too.
 
 **This round:** `{{ROUND_DIR}}/user-report.md`. Its screenshots are in the same folder; look at the ones
@@ -46,7 +48,17 @@ it references.
      and recheck contrast. Change the palette itself only if the complaint is about the identity; note it
      in your report so the main agent can update `brand.md`.
    - Visual appeal low: look at spacing rhythm, alignment, type hierarchy, image quality and the amount
-     of accent color before adding decoration.
+     of accent color first. Then use the recipes in `{{SKILL_DIR}}/design/component-kits.md` for the
+     segment's style: a Fancy page with fewer than 8 React Bits pieces, or with a section that doesn't
+     animate in, is unfinished.
+   - Animation complaints in Fancy or Playful segments (too slow, distracting, janky): **tune, don't
+     remove**. Shorten the duration and stagger, reduce the intensity, swap to a calmer component from the
+     same recipe slot, or add the mobile and reduced-motion fallbacks. Remove an animation only when it
+     blocks a task.
+   - Content that never appears (`stuck-invisible` in the audit, or "empty section" from the user): fix
+     the trigger (threshold, rootMargin, ScrollTrigger refresh) so it always fires.
+   - Demo-default colors on a React Bits component (purple aurora, neon green): recolor from the tokens
+     (`component-kits.md` §2).
 3. **Don't regress.** Keep what the report lists under "What I liked". After your changes, run on the
    affected routes:
    - `python "{{SKILL_DIR}}/scripts/ui_audit.py" --url {{URL}} --routes-file "{{ROOT}}/DESIGN/.work/routes.txt" --out "{{ROUND_DIR}}/front-audit" --fail-on major`

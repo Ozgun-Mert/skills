@@ -50,3 +50,10 @@ and update the date.
 - WCAG 2.2: https://www.w3.org/TR/WCAG22/ (Deque summary: https://dequeuniversity.com/resources/wcag-2.2)
 - Baymard, Checkout UX 2025: https://baymard.com/blog/current-state-of-checkout-ux and
   https://baymard.com/blog/checkout-flow-average-form-fields
+
+## Component kits (`component-kits.md`, checked 2026-10-13)
+- React Bits: https://reactbits.dev/ (install guide, catalog at /get-started/index, registry
+  JSON at https://reactbits.dev/r/<Name>-TS-TW.json, read for dependencies and reduced-motion handling of
+  80 components); README https://github.com/DavidHDev/react-bits (MIT + Commons Clause; Vue port vue-bits.dev)
+- shadcn/ui: https://ui.shadcn.com/docs/installation, /docs/components (64 components), /docs/registry/namespace,
+  /docs/directory; registry items checked at https://ui.shadcn.com/r/styles/new-york-v4/<name>.json

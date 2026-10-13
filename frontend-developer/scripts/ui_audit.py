@@ -22,6 +22,11 @@ For every route and width it loads the page and measures:
   no-name         icon-only button/link without an accessible name               minor
   headings        not exactly one <h1>, or a skipped heading level               minor
   fonts/colors    > 3 font families or > 10 font sizes in use                    minor
+  stuck-invisible text that was in view during the scroll-through but never became visible
+                  (an entrance animation that never fires; common with scroll-triggered
+                  React Bits / GSAP reveals)                                     major
+  webgl-mobile    a large canvas (likely a WebGL background) on a touch width, or
+                  two large canvases in view at once                             minor
   http/js         route status >= 400 (blocker), page errors (major), console
                   errors / failed requests (major)
 Also reports the word count per page and per screen (wordiness), and the font families, sizes and
@@ -30,7 +35,10 @@ colors in use.
 Usage:
   python ui_audit.py --url http://localhost:5173 --routes "/,/menu" --out DESIGN/.work/reviews/round-1/audit
                      [--routes-file f] [--widths 360,390,768,1280,1440] [--annotate] [--dark]
-                     [--fail-on blocker|major|minor]
+                     [--fail-on blocker|major|minor] [--reduced-motion] [--no-reveal]
+Before measuring, it scrolls through each page once (common.reveal_all), so scroll-triggered entrance
+animations have run; --no-reveal skips that. --reduced-motion audits with prefers-reduced-motion: reduce,
+to check that every piece of content still shows without animation.
 Writes <out>/audit.json, <out>/audit.md and, with --annotate, <out>/annotated/<route>@<w>.png
 (numbered red boxes = the issues in audit.md). Exit 1 when --fail-on is given and an issue at that
 severity or worse exists.
@@ -42,7 +50,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import (join_url, launch, route_expect, new_page, parse_routes, parse_widths, require_playwright,  # noqa: E402
-                    save_json, settle, slug, utf8_stdout, write_text)
+                    reveal_all, save_json, settle, slug, utf8_stdout, write_text)
 
 SEV_ORDER = {"blocker": 0, "major": 1, "minor": 2}
 
@@ -346,6 +354,15 @@ AUDIT_JS = r"""
   if (famList.length > 3) add('fonts', 'minor', null, `${famList.length} font families in use: ${famList.map(f => f[0]).join(', ')}`);
   if (sizes.size > 10) add('fonts', 'minor', null, `${sizes.size} different font sizes in use: ${[...sizes].sort((a, b) => parseFloat(a) - parseFloat(b)).join(' ')}`);
 
+  // ---- big canvases (WebGL backgrounds, 3D galleries)
+  const canv = [...document.querySelectorAll('canvas')].filter(c => {
+    const r = c.getBoundingClientRect();
+    return visible(c) && r.width * r.height > 0.3 * vw * vh && r.bottom > 0 && r.top < vh;
+  });
+  if (touch && canv.length) add('webgl-mobile', 'minor', canv[0],
+    `large canvas (${Math.round(canv[0].getBoundingClientRect().width)}x${Math.round(canv[0].getBoundingClientRect().height)}px) on a ${vw}px touch screen: swap the WebGL background for a static gradient on mobile`);
+  else if (canv.length > 1) add('webgl-mobile', 'minor', canv[1], `${canv.length} large canvases in view at once: keep one WebGL scene per viewport`);
+
   // ---- images
   for (const img of document.images) {
     if (!visible(img)) continue;
@@ -471,6 +488,8 @@ def main():
     ap.add_argument("--dark", action="store_true")
     ap.add_argument("--wait", type=int, default=800)
     ap.add_argument("--fail-on", choices=list(SEV_ORDER))
+    ap.add_argument("--reduced-motion", action="store_true")
+    ap.add_argument("--no-reveal", action="store_true")
     a = ap.parse_args()
 
     routes = parse_routes(a.routes, a.routes_file)
@@ -483,7 +502,8 @@ def main():
         for width in widths:
             for route_line in routes:
                 route, expected = route_expect(route_line)
-                ctx, page, log = new_page(browser, width, a.height, color_scheme="dark" if a.dark else "light")
+                ctx, page, log = new_page(browser, width, a.height, color_scheme="dark" if a.dark else "light",
+                                          reduced_motion="reduce" if a.reduced_motion else "no-preference")
                 page.add_init_script(INIT_JS)
                 info = {"route": route, "width": width, "status": None}
                 found = []
@@ -491,8 +511,14 @@ def main():
                     resp = page.goto(join_url(a.url, route), wait_until="domcontentloaded", timeout=30000)
                     info["status"] = resp.status if resp else None
                     settle(page, a.wait)
+                    stuck = [] if a.no_reveal else reveal_all(page, track=True)
                     res = page.evaluate(AUDIT_JS, {"width": width, "height": a.height})
                     found, info["stats"] = res["issues"], res["stats"]
+                    for el in stuck:
+                        found.append({"check": "stuck-invisible", "severity": "major", "selector": el["selector"],
+                                      "text": el["text"], "rect": el["rect"],
+                                      "detail": "text was on screen during the scroll-through but never became "
+                                                "visible (entrance animation never fired or starts hidden)"})
                 except Exception as e:
                     found.append({"check": "http", "severity": "blocker", "selector": "", "text": "",
                                   "detail": f"page failed to load: {str(e).splitlines()[0][:200]}", "rect": None})

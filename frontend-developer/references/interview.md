@@ -5,10 +5,10 @@ fancy landing page, normal panels and a strict blog. Each style maps to a design
 
 | Style | File the segment follows | In one line |
 |---|---|---|
-| Fancy | `SKILL_DIR/design/fancy.md` + `DESIGN/brand.md` (fancy overrides) | Award-level: big type, scroll storytelling, motion, bold two-color palette |
-| Normal | `DESIGN/normal-polished.md` (from `SKILL_DIR/design/normal.md`) | Familiar and efficient, like the big sites people already use |
-| Strict | `SKILL_DIR/design/strict.md` | Content-first, minimal, fast, very readable |
-| Playful | `SKILL_DIR/design/playful.md` | Friendly, colorful, rounded, celebratory |
+| Fancy | `SKILL_DIR/design/fancy.md` + `component-kits.md` §4 + `DESIGN/brand.md` (fancy overrides) | Award-level: big type, scroll storytelling, **lots of React Bits animation**, bold two-color palette |
+| Normal | `DESIGN/normal-polished.md` (from `SKILL_DIR/design/normal.md`) + `component-kits.md` §6 | Familiar and efficient, like the big sites people already use |
+| Strict | `SKILL_DIR/design/strict.md` + `component-kits.md` §7 | Content-first, minimal, fast, very readable |
+| Playful | `SKILL_DIR/design/playful.md` + `component-kits.md` §5 | Friendly, colorful, rounded, celebratory |
 
 Every segment, whatever its style, also follows `SKILL_DIR/design/ux-principles.md` and
 `DESIGN/ux-patterns.md`. All segments share the tokens in `DESIGN/brand.md` (fonts and palette), so the
@@ -45,9 +45,9 @@ question: "Landing page (/, /pricing, /about): which style?"
 header: "Landing"
 options:
   - label: "Fancy (Recommended)"
-    description: "Big headline, scroll-driven story, smooth motion, bold two-color look. Best first impression; a bit heavier."
+    description: "Lots of animation: animated headline, living WebGL background, every section animates in, interactive cards and galleries (React Bits). Best first impression; a bit heavier."
   - label: "Normal"
-    description: "Clean and familiar, like Wolt/Airbnb's homepage. Fast, clear, safe."
+    description: "Clean and familiar shadcn/ui look, like Wolt/Airbnb's homepage, with light motion. Fast, clear, safe."
   - label: "Strict"
     description: "Minimal, text-first, very fast. Suits serious or content-heavy brands."
   - label: "Playful"

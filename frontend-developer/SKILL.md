@@ -1,6 +1,6 @@
 ---
 name: develop-frontend
-description: Builds a project's frontend with award-level UI/UX. Reads what the project is (PROJECT.md, or any .md/.txt that describes it) and how to talk to the backend (FRONTEND.md, a link, or any API doc it finds); if there is no backend contract it asks Yes / No / Not implemented and, for not implemented, builds against a mock data layer behind the same API client. Researches similar sites (global and local, e.g. Wolt + Yemeksepeti for a Turkish food app) and their UX patterns, saves it all in a gitignored DESIGN/ folder so it never researches twice, asks which style each part should have (Fancy / Normal / Strict / Playful per segment: landing, panels, blog…), shows a page plan and task table for approval, builds, then runs a review loop where a "user" subagent that has never seen the site completes tasks through Playwright screenshots and reports what looks broken, confusing, wordy or ugly, and a "front" subagent fixes it, until the user has no complaints. Use whenever the user types /develop-frontend (with or without a FRONTEND.md path or URL), or asks to build, design, redesign or polish a website/web app frontend, UI or UX, make it look premium or award-winning, or connect a UI to an existing backend API.
+description: Builds a project's frontend with award-level UI/UX. Reads what the project is (PROJECT.md, or any .md/.txt that describes it) and how to talk to the backend (FRONTEND.md, a link, or any API doc it finds); if there is no backend contract it asks Yes / No / Not implemented and, for not implemented, builds against a mock data layer behind the same API client. Researches similar sites (global and local, e.g. Wolt + Yemeksepeti for a Turkish food app) and their UX patterns, saves it all in a gitignored DESIGN/ folder so it never researches twice, asks which style each part should have (Fancy / Normal / Strict / Playful per segment: landing, panels, blog…), builds the UI from shadcn/ui components and React Bits animations (Fancy segments get lots of motion: animated headlines, WebGL backgrounds, scroll reveals, interactive cards; Normal stays light; Strict stays still), shows a page plan and task table for approval, builds, then runs a review loop where a "user" subagent that has never seen the site completes tasks through Playwright screenshots and reports what looks broken, confusing, wordy or ugly, and a "front" subagent fixes it, until the user has no complaints. Use whenever the user types /develop-frontend (with or without a FRONTEND.md path or URL), or asks to build, design, redesign or polish a website/web app frontend, UI or UX, make it look premium, animated or award-winning, use shadcn/ui or React Bits, or connect a UI to an existing backend API.
 argument-hint: "[FRONTEND.md path or URL] [what the project is]"
 ---
 
@@ -12,7 +12,8 @@ path to the project description, and/or a plain-text description of the project.
 `SKILL_DIR` = the "Base directory for this skill" shown when this skill loaded. Scripts are run as
 `python "SKILL_DIR/scripts/<name>.py"`. `find_docs.py` and `ensure_gitignore.py` use the standard library only.
 `shoot.py`, `browse.py` and `ui_audit.py` need Playwright. The baseline design knowledge is in
-`SKILL_DIR/design/`: `fancy.md`, `normal.md`, `strict.md`, `playful.md` and `ux-principles.md`. Read each
+`SKILL_DIR/design/`: `fancy.md`, `normal.md`, `strict.md`, `playful.md`, `ux-principles.md` and
+`component-kits.md`, which covers shadcn/ui + React Bits: install, theming, motion rules and recipes for each style. Read each
 reference file when you reach the phase that points to it, not all up front.
 
 You are the **main agent**. You discover the context, research, interview, plan, build the first version, run
@@ -119,16 +120,24 @@ approve. Write `DESIGN/.work/routes.txt` (one route per line, with a sample id f
 
 ## Phase 5: Build (read `references/build.md`)
 
-Build the whole plan yourself:
-1. Tokens (CSS variables) from `brand.md`, including dark mode.
-2. A shared component set.
+Build the whole plan yourself, on **shadcn/ui + React Bits** (`SKILL_DIR/design/component-kits.md`). A new
+frontend is React: Next.js, Astro + React or Vite + React.
+1. `shadcn init`, then put the tokens from `brand.md` into shadcn's CSS variables, including dark mode.
+2. The shadcn components and blocks the plan needs, plus the React Bits pieces
+   (`npx shadcn@latest add @react-bits/<Name>-TS-TW`), recolored from the tokens and wrapped for
+   reduced motion.
 3. The API client (`real` or `mock`).
-4. The pages, segment by segment. Each segment follows its style file plus `ux-principles.md` and
-   `DESIGN/ux-patterns.md`.
+4. The pages, segment by segment. Each segment follows its style file, its recipe in
+   `component-kits.md`, `ux-principles.md` and `DESIGN/ux-patterns.md`.
+   - **Fancy pages get lots of motion:** an animated headline, a living background, a CTA effect,
+     every section animating in, and 8 or more React Bits pieces in all.
+   - Playful pages get micro-interactions.
+   - Normal pages get light entrances.
+   - Strict pages get none.
 
 Every async view has loading, empty, error and success states. Mark tasks done in `plan.md` as you go.
-Before the review loop starts, the dev server must run with no errors and
-`ui_audit.py --fail-on blocker` must pass.
+Before the review loop starts, the dev server must run with no errors, and `ui_audit.py --fail-on blocker`
+must pass with no `stuck-invisible` content.
 
 ## Phase 6: Review loop: user ⇄ front (read `references/review-loop.md`)
 
@@ -157,13 +166,15 @@ Before the review loop starts, the dev server must run with no errors and
 ## Phase 7: Final check (read `references/final-check.md`)
 
 1. The project's build, lint, typecheck and tests pass.
-2. `ui_audit.py --routes-file DESIGN/.work/routes.txt --fail-on major` exits 0 at every width, in light and
-   (if supported) dark mode.
+2. `ui_audit.py --routes-file DESIGN/.work/routes.txt --fail-on major` exits 0 at every width: in light mode,
+   in dark mode (if supported) and with `--reduced-motion`. No content may be stuck invisible, and no WebGL
+   background may remain on phone widths.
 3. There are no console errors, every route returns 200 and every plan task is done.
 4. `shoot.py` produces a final screenshot set in `DESIGN/.work/final/`.
 
 Set `phase: "done"`. Report to the user in their language:
-- what was built, the stack and the style of each segment
+- what was built, the stack and the style of each segment, with the main shadcn/React Bits pieces on
+  each Fancy page (React Bits is MIT + Commons Clause: free to use in the product, not to resell)
 - how many review rounds ran and the biggest fixes
 - the final audit counts
 - the open `{{PLACEHOLDER}}`s

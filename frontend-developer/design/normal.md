@@ -97,6 +97,13 @@ box is.
 - Touch targets ≥ 44×44px with ≥ 8px spacing.
 - No horizontal page scroll, ever. Wide tables scroll inside their own container.
 
+## Components
+
+Build Normal segments from **shadcn/ui** (sidebar, data table, field, dialog, sheet, command, sonner,
+skeleton, empty, plus blocks such as `dashboard-01` and `login-0x`), themed from the brand tokens. Motion
+stays light: short AnimatedContent/FadeContent entrances, CountUp on KPIs, AnimatedList for feeds, Stepper
+for multi-step flows. No WebGL backgrounds, cursors or scroll effects. See `component-kits.md` §6.
+
 ## Content tone
 
 Use plain, short and specific language in the user's terms (see `ux-principles.md`). Headings tell

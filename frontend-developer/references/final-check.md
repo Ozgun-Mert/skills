@@ -9,8 +9,13 @@ You run this yourself, after the review loop stops. Nothing here is delegated.
    dev-only behaviour (hydration errors, missing env vars).
 3. **Audit everything:**
    `python "SKILL_DIR/scripts/ui_audit.py" --url <url> --routes-file DESIGN/.work/routes.txt --out DESIGN/.work/final/audit --annotate --fail-on major`
-   It must exit 0. Then repeat with `--dark` if the site supports dark mode. If anything is major,
-   fix it and rerun. List the minor issues in the report; leaving them is OK only if they are accepted in
+   It must exit 0 with no `stuck-invisible` content. Then repeat:
+   - with `--reduced-motion`. Every piece of content must still be visible, and no WebGL canvas may be
+     animating (the Motion wrapper renders the final states).
+   - with `--dark`, if the site supports dark mode.
+
+   `webgl-mobile` hints at 360/390 mean a WebGL background wasn't swapped for its static fallback;
+   fix them. If anything is major, fix it and rerun. List the minor issues in the report; leaving them is OK only if they are accepted in
    `decisions.md` or are clear false positives (say which).
 4. **Final screenshots:**
    `python "SKILL_DIR/scripts/shoot.py" --url <url> --routes-file DESIGN/.work/routes.txt --out DESIGN/.work/final/shots`

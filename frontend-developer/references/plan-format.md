@@ -12,7 +12,7 @@ Write `DESIGN/plan.md` from `SKILL_DIR/templates/plan.md`. Show the user the **p
 | Purpose | The one job of the page, from the user's point of view |
 | Segment → style | `Catalog → Normal` |
 | Data | Contract endpoints (`GET /api/menus/{id}`) or `mock: menus.json`; `static` when there's no backend; `local` for localStorage |
-| Key components | `CategoryChips, ItemCard, ItemSheet, BasketBar` |
+| Key components | shadcn/ui as `ui:` and React Bits as `RB:`, plus your own: `ui:Sheet, ui:Badge, RB:AnimatedContent, CategoryChips, ItemCard, BasketBar`. A Fancy page lists its **motion budget**: 8 or more `RB:` pieces, one per slot of `component-kits.md` §4 (headline, background, CTA, section entrances, and four more) |
 | States | Loading / empty / error / success: what each one shows, briefly |
 | UX patterns | IDs from `ux-patterns.md` and `ux-principles.md` (e.g. `browse→cart`, L-Fitts, H1) |
 
@@ -23,9 +23,9 @@ pages, the toast system and the cookie banner (only when the site uses cookies t
 
 | ID | Task | Files | Done when |
 |---|---|---|---|
-| T1 | Design tokens + fonts (light/dark) | `src/styles/tokens.css`, layout | tokens used, contrast pairs pass |
+| T1 | `shadcn init` + brand tokens in shadcn variables + fonts (light/dark) | `globals.css`, `lib/tokens.ts`, layout | tokens used, contrast pairs pass |
 | T2 | API client + mock layer + fixtures | `src/lib/api/*`, `src/mocks/*` | every planned endpoint returns typed data in `mock` mode |
-| T3 | Shared components | `src/components/ui/*` | each has hover/focus/active/disabled/loading |
+| T3 | shadcn components + React Bits pieces + reduced-motion wrapper | `components/ui/*`, `components/motion/*` | themed from tokens (no demo purple); every state; reduced-motion renders the final state |
 | T4… | One task per page or per tightly linked group of pages | … | renders all four states; `ui_audit` has no blocker |
 | Tn | FRONTEND.md (mock mode) | `FRONTEND.md` | lists every endpoint the UI calls |
 
@@ -33,8 +33,9 @@ Keep it to about 8–25 tasks. Each must be checkable. The front agent and the f
 
 ## Stack line (new frontend only)
 
-`Stack: SvelteKit + TypeScript + Tailwind v4 because 6 page types, mostly forms/lists, public pages need
-SSR (references/build.md rubric).` Don't ask about it. It's here for information.
+`Stack: Next.js App Router + TypeScript + Tailwind v4 + shadcn/ui + React Bits, because there are public pages
+that need SSR and the UI kits are React (references/build.md rubric).` Don't ask about it. It's here for
+information.
 
 ## Approval
 

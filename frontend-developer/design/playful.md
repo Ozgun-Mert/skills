@@ -43,7 +43,13 @@ illustrations, Figma and Discord marketing pages, and Material 3 Expressive. See
 - Never childish in serious moments (payment, privacy, account deletion). Those use the
   **normal** rules with the playful palette.
 
+**Components**
+- shadcn/ui primitives, restyled with the playful tokens (bigger radius, chunkier borders).
+- React Bits micro-interactions on every control and feedback moment: SpringCheck, JellyRadio,
+  SquishSwitch, ElasticSlider, PeekRating, SwipeToast, PulseHeart, ClickSpark on success, HoldButton,
+  BounceCards, Stack, AnimatedList, Stepper and CountUp. See `component-kits.md` §5.
+
 **Watch out**
 - Playful isn't messy: it uses the same grid, spacing scale and alignment discipline as normal.
 - Don't put playful decoration on dense data screens. It competes with the data.
-- Don't make every element animated. Pick moments.
+- Each control and feedback moment may move; the content itself shouldn't constantly move.

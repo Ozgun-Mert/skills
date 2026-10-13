@@ -9,7 +9,7 @@ script copies it into `~/.claude/skills/` so the slash command works in every pr
 | [seo-optimizer](seo-optimizer/) | `/optimize-seo` | People-first SEO: keyword research, intent → page map, pages and technical SEO, with approval at every step |
 | [backend-checker](backend-checker/) | `/check-backend-security` · `/check-backend-code-quality` · `/check-backend-health` | Backend security audit and code-quality review as gitignored reports in `docs/`, incremental and token-efficient |
 | [make-no-mistakes](make-no-mistakes/) | `/make-no-mistakes` | Researches, interviews you, plans in detail, then builds the whole app (or a feature) with parallel headless `/goal` workers, a mandatory security gate and SEO-ready UI |
-| [frontend-developer](frontend-developer/) | `/develop-frontend` | Builds a frontend with award-level UI/UX: finds the project brief and backend contract (or mocks it), researches similar sites, lets you pick a style per segment, then iterates with a screenshot-only "user" agent and a "front" agent until the user has no complaints |
+| [frontend-developer](frontend-developer/) | `/develop-frontend` | Builds a frontend with award-level UI/UX on shadcn/ui + React Bits (lots of animation in Fancy segments): finds the project brief and backend contract (or mocks it), researches similar sites, lets you pick a style per segment, then iterates with a screenshot-only "user" agent and a "front" agent until the user has no complaints |
 
 ---
 
@@ -610,7 +610,7 @@ user found broken, confusing, wordy or ugly. The rounds stop when the user has n
 | 2 Research | Web searches in English **and** the local language (e.g. Wolt + Yemeksepeti + QR-menu products for a Turkish QR menu) → `DESIGN/similar-sites.md`, `ux-patterns.md`, `normal-polished.md`, `brand.md` (our own fonts and palette, different from competitors, contrast-checked). Skipped when `DESIGN/` already has it | — |
 | 3 Styles | One question per segment (landing, panels, catalog, checkout, blog, docs…): **Fancy / Normal / Strict / Playful** | Pick a style per segment |
 | 4 Plan | Page plan (route, purpose, style, data, components, states) + task table | Approve or change |
-| 5 Build | Tokens, components, API client (real or mock, with `?mock=empty` / `?mock=error`), pages with loading/empty/error/success states | — |
+| 5 Build | React (Next.js / Astro / Vite) + Tailwind v4 + **shadcn/ui** themed from `brand.md` + **React Bits** motion (Fancy: animated headline, WebGL background, CTA effect, every section animates in, 8 or more pieces per page; Playful: micro-interactions; Normal: light; Strict: none). API client (real or mock, with `?mock=empty` / `?mock=error`), pages with loading/empty/error/success states | — |
 | 6 Review loop | Each round: a **fresh user agent** (persona from your real users, goal-only tasks, sees only `shoot.py` / `browse.py` / `ui_audit.py` screenshots) writes `user-report.md`; the **front agent** fixes root causes citing UX principles and writes `front-report.md`; the main agent arbitrates rejections. Repeats until there are no complaints and every plan task is done (check-in after round 6) | Only if asked to continue after round 6 |
 | 7 Final check | Build/lint/typecheck/tests, `ui_audit --fail-on major` on every route and width, final screenshots, flows replayed, no leftovers | Read the report |
 
@@ -622,6 +622,7 @@ user found broken, confusing, wordy or ugly. The rounds stop when the user has n
 | `normal.md` | Conventions from the most-visited sites (Google, YouTube, Amazon, Instagram, ChatGPT, Wikipedia…) and big design systems. General rules, polished per project |
 | `strict.md` | GOV.UK, Wikipedia, Stripe/MDN docs and editorial sites: content-first reading and forms |
 | `playful.md` | Duolingo, Headspace, Notion marketing and similar sites: friendly, colorful, rewarding |
+| `component-kits.md` | shadcn/ui + React Bits: install (`npx shadcn@latest add @react-bits/<Name>-TS-TW`), theming both kits from the brand tokens, dependencies and reduced-motion support checked for 80 components, motion rules (one WebGL canvas in view, mobile fallbacks, nothing stuck invisible) and recipes for each style |
 | `ux-principles.md` | Nielsen's 10 heuristics, Laws of UX, signifiers, visual-integrity rules, WCAG 2.2 AA, Baymard checkout 2025, wordiness. Each has an ID the front agent cites |
 
 ### What you get (all in `DESIGN/`, gitignored)
@@ -653,9 +654,9 @@ Re-run it after editing anything in `frontend-developer/`, then start a new Clau
 |---|---|
 | `ensure_gitignore.py` | Adds `/DESIGN/` once, verifies with `git check-ignore`, reports DESIGN files git already tracks |
 | `find_docs.py` | Ranks .md/.txt files as project description / backend contract (English and Turkish signals), skipping dependencies and build output |
-| `shoot.py` | Full-page screenshots of routes × widths (360/390/768/1280/1440), plus status, console errors and failed requests |
+| `shoot.py` | Full-page screenshots of routes × widths (360/390/768/1280/1440), plus status, console errors and failed requests. It scrolls through the page first, so scroll-triggered animations have run; `--frames N` saves first-screen frames 250ms apart to show the entrance motion |
 | `browse.py` | Replays a JSON step list (goto, click by text/role/label/coordinates, fill, select, scroll, expect…), screenshots each step, prints the visible text and the clickable elements with their cursor |
-| `ui_audit.py` | Measures defects: sideways overflow, missing pointer cursor (detects React/Vue/Svelte click handlers), clickable divs, uneven sibling buttons (one label wrapping to 2 lines), uneven cards, small targets, covered elements, clipped text, contrast, broken/stretched/alt-less images, headings, too many fonts, JS/HTTP errors, word counts. `--annotate` draws numbered boxes on screenshots; `--fail-on major` for gates |
+| `ui_audit.py` | Measures defects: sideways overflow, missing pointer cursor (detects React/Vue/Svelte click handlers), clickable divs, uneven sibling buttons (one label wrapping to 2 lines), uneven cards, small targets, covered elements, clipped text, contrast, broken/stretched/alt-less images, headings, too many fonts, JS/HTTP errors, word counts, **stuck-invisible** content (an entrance animation that never fires) and WebGL canvases on mobile. `--reduced-motion` audits the no-animation fallback. `--annotate` draws numbered boxes on screenshots; `--fail-on major` for gates |
 
 Routes can be passed with `--routes "/,/menu"` or `--routes-file`. A line like `/missing [404]` means the
 route is expected to return 404.
@@ -670,8 +671,10 @@ python frontend-developer/scripts/browse.py --url http://localhost:5173 --steps 
 
 ### Known limitations
 
-- The user agent judges from screenshots and the browse output, so animations, sound and hover-only
-  effects are judged from still frames.
+- The user agent judges motion from still frames (`--frames`, `wait` steps in browse.py), not video.
+  Scroll-linked (scrub) effects show their top-of-page state in full-page shots.
+- React Bits is MIT + Commons Clause: free to use in your product, but the components themselves may
+  not be resold.
 - `ui_audit.py` is a heuristic. The user agent confirms each hint on the screenshots before reporting
   it, and the main agent checks the cited screenshots for script artefacts.
 - Award-site fonts (Suisse, GT, Diatype…) are commercial. `fancy.md` maps them to free alternatives.
@@ -685,7 +688,7 @@ frontend-developer/
 ├── SKILL.md                # the skill (name: develop-frontend)
 ├── develop-frontend.md     # copy of SKILL.md, kept in sync by install.ps1
 ├── install.ps1, requirements.txt
-├── design/                 # baseline: fancy, normal, strict, playful, ux-principles, sources
+├── design/                 # baseline: fancy, normal, strict, playful, ux-principles, component-kits, sources
 ├── references/             # context discovery, project research, interview, plan format, build,
 │                           # persona-user, persona-front, review loop, final check
 ├── templates/              # FRONTEND.md, plan.md, user-report.md, front-report.md

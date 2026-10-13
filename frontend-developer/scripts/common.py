@@ -172,3 +172,103 @@ def settle(page, wait_ms=600):
     except Exception:
         pass
     page.wait_for_timeout(wait_ms)
+
+
+# Records, for every element with its own text that is inside the viewport right now, whether it is
+# visible (effective opacity >= 0.1). Called once per scroll step. Things hidden on purpose (closed
+# menus, tooltips, visibility:hidden, opacity 0 + pointer-events:none overlays) are ignored.
+TRACK_JS = r"""
+() => {
+  const W = window.__revealSeen || (window.__revealSeen = {vis: new WeakSet(), invis: new Set()});
+  const vh = innerHeight, vw = innerWidth;
+  let n = 0;
+  for (const el of document.body.querySelectorAll('*')) {
+    if (++n > 4000) break;
+    if (!el.childNodes.length) continue;
+    let own = false;
+    for (const c of el.childNodes) if (c.nodeType === 3 && c.textContent.trim().length > 1) { own = true; break; }
+    if (!own) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2 || r.bottom <= 0 || r.top >= vh || r.right <= 0 || r.left >= vw) continue;
+    // closed menus, tooltips and dialogs are hidden on purpose
+    if (el.closest('[aria-hidden="true"],[data-state="closed"],[role="tooltip"],[inert],[hidden]')) continue;
+    let op = 1, skip = false;
+    for (let e = el; e && e !== document.documentElement; e = e.parentElement) {
+      const s = getComputedStyle(e);
+      if (s.display === 'none' || s.visibility === 'hidden') { skip = true; break; }
+      const o = parseFloat(s.opacity);
+      if (o < 0.1 && s.pointerEvents === 'none') { skip = true; break; } // hidden overlay, not an entrance
+      op *= o;
+    }
+    if (skip) continue;
+    if (op >= 0.1) { W.vis.add(el); W.invis.delete(el); }
+    else if (!W.vis.has(el)) W.invis.add(el);
+  }
+}
+"""
+
+STUCK_JS = r"""
+() => {
+  const W = window.__revealSeen; if (!W) return [];
+  const out = [];
+  const describe = el => {
+    const parts = [];
+    for (let e = el, i = 0; e && e.nodeType === 1 && i < 4 && e !== document.body; e = e.parentElement, i++) {
+      let p = e.tagName.toLowerCase();
+      if (e.id && !/\d{3,}/.test(e.id)) { parts.unshift(p + '#' + e.id); break; }
+      const cls = [...e.classList].filter(c => c.length < 30 && !/[:\[\]\/]/.test(c)).slice(0, 2);
+      if (cls.length) p += '.' + cls.join('.');
+      parts.unshift(p);
+    }
+    return parts.join(' > ');
+  };
+  for (const el of W.invis) {
+    if (!el.isConnected || W.vis.has(el)) continue;
+    const r = el.getBoundingClientRect();
+    out.push({selector: describe(el), text: (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 50),
+              rect: {x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height)}});
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+"""
+
+
+def reveal_all(page, step_wait=350, max_steps=40, track=False):
+    """Scroll down one viewport at a time so scroll-triggered entrance animations (IntersectionObserver,
+    GSAP ScrollTrigger, React Bits AnimatedContent/FadeContent/SplitText…) fire, then return to the top.
+
+    A full-page screenshot never scrolls, so without this every section below the first screen stays at
+    opacity 0. With track=True it returns the text elements that were *in view and still invisible* at
+    every step: content whose animation never fires (stuck-invisible). Scroll-linked (scrub) effects are
+    judged while they are in view, so they don't count as stuck.
+    """
+    stuck = []
+    try:
+        vh = page.evaluate("innerHeight")
+        step = max(200, int(vh * 0.7))
+        y = 0
+        for _ in range(max_steps):
+            if track:
+                page.evaluate(TRACK_JS)
+            height = page.evaluate("document.documentElement.scrollHeight")
+            if y + vh >= height:
+                break
+            y += step
+            page.mouse.wheel(0, step)  # real wheel events: smooth-scroll libraries (Lenis) follow them
+            page.wait_for_timeout(step_wait)
+            if page.evaluate("scrollY") + 5 < min(y, height - vh):  # wheel ignored: scroll directly
+                page.evaluate(f"window.scrollTo(0, {y})")
+                page.wait_for_timeout(step_wait)
+        if track:
+            page.wait_for_timeout(step_wait)
+            page.evaluate(TRACK_JS)
+            stuck = page.evaluate(STUCK_JS)
+        page.evaluate("window.scrollTo(0, 0)")
+        page.mouse.wheel(0, -100000)
+        page.wait_for_timeout(500)
+        page.evaluate("window.scrollTo(0, 0)")
+        page.wait_for_timeout(300)
+    except Exception:
+        pass
+    return stuck

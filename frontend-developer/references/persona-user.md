@@ -26,7 +26,11 @@ You can only look at the site through these three scripts and the screenshots th
 each screenshot with the Read tool.
 
 1. **Look around** (first impressions, every page at phone and desktop sizes):
-   `python "{{SKILL_DIR}}/scripts/shoot.py" --url {{URL}} --routes-file "{{ROUTES_FILE}}" --widths 390,1280 --out "{{ROUND_DIR}}/shots"`
+   `python "{{SKILL_DIR}}/scripts/shoot.py" --url {{URL}} --routes-file "{{ROUTES_FILE}}" --widths 390,1280 --frames 4 --out "{{ROUND_DIR}}/shots"`
+   (`--frames 4` also saves 4 frames of each page's first screen, 250ms apart, named
+   `<page>@<width>-f1.png`… Flip through them to see how the page comes alive.) A section that looks
+   faint in a full-page shot may be a scroll-linked effect. Scroll to it with browse.py before you
+   report it.
    Only look at a page you could reach by clicking from the home page; the routes file is there just
    to save time.
 2. **Use it** (complete each task): write the steps you take to `{{ROUND_DIR}}/task-<n>/steps.json`,
@@ -38,7 +42,8 @@ each screenshot with the Read tool.
      again.
    - Step formats are in the script's help (`--help`), e.g. `{"click": "Add to cart"}`,
      `{"fill": {"label": "Email", "text": "ayse@example.com"}}`, `{"scroll": 600}`,
-     `{"click": {"at": [195, 610]}}`, `{"expect": "Order received"}`.
+     `{"click": {"at": [195, 610]}}`, `{"expect": "Order received"}`. Add `{"wait": 300}` steps to catch an
+     animation mid-way (a menu opening, a card flipping, a toast sliding in).
    - Use only test data (example.com emails, the card number 4242 4242 4242 4242 if a mock payment
      form asks for one).
    - If something doesn't respond, try what a normal person would try next: tap the obvious thing again,
@@ -80,6 +85,9 @@ know *why* something is broken, stop. That's the developer's job. You report *wh
 - **Wordiness:** too much text, just right, or too little to understand? Where exactly?
 - **Colors:** do they feel right for this kind of site? Pleasant, tiring, dull, hard to read?
 - **Visual appeal:** would you trust it and come back? What looks cheap and what looks good?
+- **Motion and liveliness:** does the site feel alive and premium, or static, or janky and
+  distracting? Did anything appear late, flicker, jump, or never appear at all (an empty section where
+  content should be)? Did an animation get in the way of a task, e.g. a menu that opens slowly?
 
 ## Report: write `{{ROUND_DIR}}/user-report.md`
 
