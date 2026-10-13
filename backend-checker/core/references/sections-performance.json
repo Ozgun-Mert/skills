@@ -1,0 +1,24 @@
+{
+  "title": "Performance",
+  "scale": "impact",
+  "levels": ["High", "Medium", "Low"],
+  "efforts": ["S", "M", "L"],
+  "roadmap": true,
+  "roadmap_title": "Optimization roadmap",
+  "groups": [],
+  "sections": [
+    {"id": "1", "title": "SQL queries"},
+    {"id": "2", "title": "Algorithmic complexity"},
+    {"id": "3", "title": "Caching"},
+    {"id": "4", "title": "Architecture (database, language, framework, libraries)"},
+    {"id": "5", "title": "Connections & infrastructure latency"},
+    {"id": "6", "title": "Database indexes"},
+    {"id": "7", "title": "Pagination & payload size"},
+    {"id": "8", "title": "Async & blocking work"},
+    {"id": "9", "title": "Connection pooling & timeouts"},
+    {"id": "10", "title": "Memory usage"},
+    {"id": "11", "title": "External API calls"},
+    {"id": "12", "title": "HTTP caching & CDN"},
+    {"id": "13", "title": "Cold start & startup"}
+  ]
+}

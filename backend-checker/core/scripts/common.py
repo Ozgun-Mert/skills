@@ -176,3 +176,83 @@ def read_text(path, limit=2_000_000):
     if len(b) > limit or b"\x00" in b[:4096]:
         return None, b
     return b.decode("utf-8", errors="replace"), b
+
+# --------------------------------------------------------------------------- brace languages
+# Shared by quality_scan.py and perf_scan.py: a heuristic function/block tracker for brace languages.
+BRACE_LANGS = {"javascript", "typescript", "go", "java", "kotlin", "csharp", "php", "rust", "scala", "vue", "svelte"}
+CONTROL = re.compile(r"^\s*(\}\s*)?(else\s+if|if|else|for|foreach|while|switch|try|catch|finally|do|select)\b|^\s*(case|default)\b.*:\s*\{?\s*$")
+FN_START = [
+    re.compile(r"^\s*(export\s+)?(default\s+)?(async\s+)?function\s*\*?\s*([\w$]*)\s*\("),
+    re.compile(r"^\s*(export\s+)?(const|let|var)\s+([\w$]+)\s*=\s*(async\s*)?(\([^)]*\)|[\w$]+)\s*(:\s*[^=]+)?=>"),
+    re.compile(r"^\s*(public|private|protected|internal|static|async|override|final|\s)*\s*([\w$<>\[\],]+\s+)?([\w$]+)\s*\([^;]*\)\s*(:\s*[\w<>\[\]|, .]+)?\s*(throws [\w, .]+)?\s*\{\s*$"),
+    re.compile(r"^\s*func\s+(\([^)]*\)\s*)?([\w]+)\s*\("),
+    re.compile(r"^\s*(public|private|protected|static|\s)*function\s+([\w]+)\s*\("),
+    re.compile(r"""\.(get|post|put|patch|delete|use|all|on)\s*\(\s*(['"`][^'"`]*['"`])?.*(=>|function\s*\()"""),
+]
+NOT_FN = re.compile(r"^\s*(if|for|while|switch|catch|return|else|do|try|with|new|typeof|await)\b")
+
+
+def strip_strings(line):
+    return re.sub(r"""(['"`])(?:\\.|(?!\1).)*\1""", "''", line.split("//")[0] if "://" not in line else line)
+
+
+def brace_functions(lines):
+    """Yield (name, start, end, max_control_depth) using brace matching. Heuristic, good enough for candidates."""
+    out = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        line = lines[i]
+        name = None
+        if not NOT_FN.match(line):
+            for rx in FN_START:
+                m = rx.search(line)
+                if m:
+                    groups = [g for g in m.groups() if g and re.match(r"^['\"`]?[\w$/:.\-]+['\"`]?$", g.strip())]
+                    name = groups[-1].strip() if groups else "(anonymous)"
+                    break
+        if name is None:
+            i += 1
+            continue
+        depth, started, stack, maxd = 0, False, [], 0
+        j = i
+        while j < n:
+            s = strip_strings(lines[j])
+            is_ctrl = bool(CONTROL.match(lines[j]))
+            for ch in s:
+                if ch == "{":
+                    depth += 1
+                    started = True
+                    stack.append(is_ctrl and depth > 1)
+                    maxd = max(maxd, sum(stack))
+                elif ch == "}":
+                    depth -= 1
+                    if stack:
+                        stack.pop()
+            if started and depth <= 0:
+                break
+            if not started and j - i > 3:
+                break
+            j += 1
+        if started:
+            out.append((name, i + 1, j + 1, maxd))
+            i += 1  # nested functions are reported separately
+        else:
+            i += 1
+    return out
+
+def brace_block_end(lines, i, max_scan=4):
+    """1-based end line of the `{...}` block that opens on (or within max_scan lines after) line index i, or None."""
+    depth, started = 0, False
+    for j in range(i, len(lines)):
+        for ch in strip_strings(lines[j]):
+            if ch == "{":
+                depth += 1
+                started = True
+            elif ch == "}":
+                depth -= 1
+        if started and depth <= 0:
+            return j + 1
+        if not started and j - i >= max_scan:
+            return None
+    return len(lines) if started else None

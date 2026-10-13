@@ -18,10 +18,12 @@ health.
   secrets are masked.
 
 ## Phase 0 – Arguments
-`$ARGUMENTS` = `<api_path> [extra paths…] [--full]`.
+`$ARGUMENTS` = `<api_path> [extra paths…] [--url <public URL>] [--full]`.
 - The first path is the API directory. Any further paths are optional context (frontend, shared
   types); don't ask the user to label them.
 - `--full` disables incremental mode.
+- `--url` is the project's public URL. The performance check uses it to measure live latency. Without
+  it, `index.py` tries to detect one, and the live part is skipped if none is found.
 - If the API path is missing or doesn't exist, look for likely candidates (`api/`, `server/`,
   `backend/`, `src/` with a server framework in its manifest) and ask with AskUserQuestion. Never
   guess silently.
@@ -31,7 +33,7 @@ Run in this order. Each prints a compact JSON summary; that summary is all you n
 `index.json`: it's large and the agents get the parts they need from their plan.
 1. `ensure_gitignore.py --root .` adds the reports and `docs/.backend-checks/` to `.gitignore`. If it
    lists `tracked` files, tell the user at the end to run `git rm --cached <file>`. Never run it yourself.
-2. `index.py --root . --api <api_path> [--extra <paths…>]`.
+2. `index.py --root . --api <api_path> [--extra <paths…>] [--url <URL>]`.
 3. `plan.py --root . --checks <comma-separated CHECKS> [--full]`.
 4. If `all_skip` is true, nothing changed since the last run: go straight to Phase 4. No agents.
 5. Run every `prep_commands` entry of the non-skipped checks. Independent commands go in parallel
@@ -39,6 +41,13 @@ Run in this order. Each prints a compact JSON summary; that summary is all you n
    - `osv_check.py` needs the network. If it reports `network_ok: false`, carry on: the security agent
      falls back to WebSearch for 1a.
 6. Delete leftover `docs/.backend-checks/findings-*.new.json` files from interrupted runs.
+7. **Project profile** (only when CHECKS include `performance` and it isn't skipped): run
+   `profile.py show --root .`. If it lists `open_questions`, ask them with AskUserQuestion (≤4 per
+   call, header `Profile`, the listed options), then save the answers with
+   `profile.py set --root . --answers '{"scale": "small", ...}'` (keys from the questions). This
+   happens before any agent starts, because the answers change the advice. Answers are saved, so they
+   are asked only once per project. If you can't ask (non-interactive run), skip this: the agent uses
+   the inferred values and says so in the report.
 
 ## Phase 2 – Agents
 Skip any check whose plan says `skip: true`.
@@ -52,8 +61,8 @@ The code is NOT in your context: load it with bundle.py as the contract describe
 Return only the one-line summary from the contract.
 ```
 
-**One check** (`/check-backend-security`, `/check-backend-code-quality`): spawn one `general-purpose`
-subagent with the prompt above.
+**One check** (`/check-backend-security`, `/check-backend-code-quality`, `/check-backend-performance`):
+spawn one `general-purpose` subagent with the prompt above.
 
 **Health** (`/check-backend-health`):
 - **If `preload.ok` is true and the Agent tool offers a `fork` subagent type** (a fork inherits your
@@ -108,12 +117,13 @@ user which check didn't finish and render only the others.
 1. `findings.py render --root . --check <id>` for every check in CHECKS. This also covers skipped
    checks, so their header says nothing changed. Its output already has everything the reply needs:
    counts per level, `top` items, `tests` status and `mode`. Don't open the report to write the reply.
-   Counts can differ from an agent's summary line, because answered 4a questions drop or downgrade
-   items.
+   Always use the render counts. An agent's summary line can be off (it counts by hand, and answered
+   4a questions drop or downgrade items). For the code-quality and performance "top 3", use the
+   render's `top`: it is already in roadmap order.
 2. Reply briefly. **Don't paste the reports.** Include:
    - one line per report: a link to the file and its counts by level (from the render output);
-   - **Fix first:** the 3–5 most severe security items (id + title) and the top 3 roadmap items for
-     code quality;
+   - **Fix first:** the 3–5 most severe security items (id + title), and the top 3 roadmap items each
+     for code quality and performance;
    - test status (ran / failed / not run / no suite);
    - anything the user must act on: tracked report files (`git rm --cached`), secrets to rotate,
      OSV/network fallbacks, unanswered questions;
@@ -123,5 +133,7 @@ user which check didn't finish and render only the others.
 - Read-only on the project. The only writes are `docs/` reports, `docs/.backend-checks/*` and the
   `.gitignore` lines.
 - No installs, no docker, no git commands that change anything.
-- Only package names and versions go to external services.
+- Only package names and versions go to external services. The exceptions are the performance
+  check's network probe: IP addresses go to one ip-api.com geo lookup, and GET requests go to the
+  user's own URL. Source code never leaves the machine.
 - Talk to the user in the language they use. Reports are written in English.

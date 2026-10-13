@@ -1,12 +1,12 @@
 ---
 name: check-backend-health
-description: Full backend health check that runs every registered backend check at once (today the security audit → docs/SECURITY_PROBLEMS.md and the code-quality review → docs/CODE_QUALITY.md, plus any check added later) in parallel, reading the code only once and sharing it between agents through the prompt cache so it costs far less than running the checks one by one. Incremental: unchanged files aren't re-analyzed and fixed problems vanish from the reports. Use whenever the user types /check-backend-health (e.g. `/check-backend-health api web shared`), or asks for a full backend/API review, audit, health check, or "check everything" on their server code, even without naming the reports. Any language or framework. Report-only; never edits code.
-argument-hint: "<api_path> [frontend/shared paths…] [--full]"
+description: Full backend health check that runs every registered backend check at once, in parallel: the security audit → docs/SECURITY_PROBLEMS.md, the code-quality review → docs/CODE_QUALITY.md, the performance review → docs/PERFORMANCE.md, plus any check added later. It builds the index once, reads the code once and shares it between the agents where the environment allows. Incremental: unchanged files aren't re-analyzed and fixed problems vanish from the reports. Use whenever the user types /check-backend-health (e.g. `/check-backend-health api web shared --url https://api.example.com`), or asks for a full backend/API review, audit, health check, or "check everything" on their server code, even without naming the reports. Any language or framework. Report-only; never edits code.
+argument-hint: "<api_path> [frontend/shared paths…] [--url https://your-domain] [--full]"
 ---
 
 # /check-backend-health
 
-Input: `$ARGUMENTS` = `<api_path> [extra paths…] [--full]`. Example: `/check-backend-health api web shared`.
+Input: `$ARGUMENTS` = `<api_path> [extra paths…] [--url <public URL>] [--full]`. Example: `/check-backend-health api web shared`.
 
 `SKILL_DIR` = the "Base directory for this skill" shown when this skill loaded (if none is shown, the folder containing this SKILL.md). `CORE` = `SKILL_DIR/core`.
 

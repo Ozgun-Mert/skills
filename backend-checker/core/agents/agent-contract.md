@@ -11,7 +11,8 @@ report format is not your job. Your job is accurate findings with a clear fix.
 - **Never print a secret value.** Refer to secrets by variable name and location. If you must show a
   value, show the first 4 characters and `…`. The renderer masks known patterns too, but don't rely on it.
 - **Only package names and versions may leave the machine** (OSV, endoflife.date, package registries,
-  web search). Never paste source code into a search or a URL.
+  web search). The performance check may also search for the project's domain and scale, and its
+  scripts probe the user's own URL. Never paste source code into a search or a URL.
 - **Stay in scope.** The API path is fully in scope. Read the extra paths (frontend, shared types) only
   where your brief says a section needs them. Outside the given paths, read only manifests/lockfiles,
   `.env.example`, Docker/nginx/proxy config, CI config and DB schema/migrations, and only when a

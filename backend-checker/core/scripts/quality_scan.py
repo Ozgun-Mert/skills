@@ -20,18 +20,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common as C  # noqa: E402
+from common import BRACE_LANGS, brace_functions  # noqa: E402
 
-BRACE_LANGS = {"javascript", "typescript", "go", "java", "kotlin", "csharp", "php", "rust", "scala", "vue", "svelte"}
-CONTROL = re.compile(r"^\s*(\}\s*)?(else\s+if|if|else|for|foreach|while|switch|try|catch|finally|do|select)\b|^\s*(case|default)\b.*:\s*\{?\s*$")
-FN_START = [
-    re.compile(r"^\s*(export\s+)?(default\s+)?(async\s+)?function\s*\*?\s*([\w$]*)\s*\("),
-    re.compile(r"^\s*(export\s+)?(const|let|var)\s+([\w$]+)\s*=\s*(async\s*)?(\([^)]*\)|[\w$]+)\s*(:\s*[^=]+)?=>"),
-    re.compile(r"^\s*(public|private|protected|internal|static|async|override|final|\s)*\s*([\w$<>\[\],]+\s+)?([\w$]+)\s*\([^;]*\)\s*(:\s*[\w<>\[\]|, .]+)?\s*(throws [\w, .]+)?\s*\{\s*$"),
-    re.compile(r"^\s*func\s+(\([^)]*\)\s*)?([\w]+)\s*\("),
-    re.compile(r"^\s*(public|private|protected|static|\s)*function\s+([\w]+)\s*\("),
-    re.compile(r"""\.(get|post|put|patch|delete|use|all|on)\s*\(\s*(['"`][^'"`]*['"`])?.*(=>|function\s*\()"""),
-]
-NOT_FN = re.compile(r"^\s*(if|for|while|switch|catch|return|else|do|try|with|new|typeof|await)\b")
 NUM = re.compile(r"(?<![\w.$])-?\d+\.\d+|(?<![\w.$])\d{2,}(?![\w.])")
 OK_NUMS = {"10", "100", "1000", "200", "201", "204", "301", "302", "304", "400", "401", "403", "404", "405", "409", "410", "422",
            "429", "500", "502", "503", "0.0", "1.0", "0.5", "24", "60", "12", "16", "32", "64", "1024", "8", "2", "3"}
@@ -70,56 +60,6 @@ def top_level_names(body):
         m = re.match(r"\s*([\w$]+)", part)
         if m:
             out.append(m.group(1))
-    return out
-
-
-def strip_strings(line):
-    return re.sub(r"""(['"`])(?:\\.|(?!\1).)*\1""", "''", line.split("//")[0] if "://" not in line else line)
-
-
-def brace_functions(lines):
-    """Yield (name, start, end, max_control_depth) using brace matching. Heuristic, good enough for candidates."""
-    out = []
-    i = 0
-    n = len(lines)
-    while i < n:
-        line = lines[i]
-        name = None
-        if not NOT_FN.match(line):
-            for rx in FN_START:
-                m = rx.search(line)
-                if m:
-                    groups = [g for g in m.groups() if g and re.match(r"^['\"`]?[\w$/:.\-]+['\"`]?$", g.strip())]
-                    name = groups[-1].strip() if groups else "(anonymous)"
-                    break
-        if name is None:
-            i += 1
-            continue
-        depth, started, stack, maxd = 0, False, [], 0
-        j = i
-        while j < n:
-            s = strip_strings(lines[j])
-            is_ctrl = bool(CONTROL.match(lines[j]))
-            for ch in s:
-                if ch == "{":
-                    depth += 1
-                    started = True
-                    stack.append(is_ctrl and depth > 1)
-                    maxd = max(maxd, sum(stack))
-                elif ch == "}":
-                    depth -= 1
-                    if stack:
-                        stack.pop()
-            if started and depth <= 0:
-                break
-            if not started and j - i > 3:
-                break
-            j += 1
-        if started:
-            out.append((name, i + 1, j + 1, maxd))
-            i += 1  # nested functions are reported separately
-        else:
-            i += 1
     return out
 
 

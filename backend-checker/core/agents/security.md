@@ -9,7 +9,7 @@ Check id: `security`. Use the section ids below exactly.
 |---|---|
 | **Critical** | Exploitable now with no special access, leading to data theft/tampering, account takeover, money loss or remote code execution: SQL injection, live secrets in git, missing ownership check on writes, plaintext passwords, prices taken from the client. |
 | **High** | Serious but needs a precondition (a logged-in user, a specific config), or a large blast radius: IDOR on reads, wildcard CORS with credentials, no rate limit on login, JWT without expiry, stack traces to clients, known CVE with a public exploit. |
-| **Medium** | Weakens defense in depth or causes wrong data/crashes: missing headers, N+1 on hot paths, missing transaction, enumeration messages, CVE in a code path you don't use. |
+| **Medium** | Weakens defense in depth or causes wrong data/crashes: missing headers, logic that crashes on empty results, missing transaction, enumeration messages, CVE in a code path you don't use. |
 | **Low** | Hardening and hygiene. |
 
 Add `owasp` (e.g. `A01 Broken Access Control`) where one fits.
@@ -72,16 +72,9 @@ limited to `files_to_analyze`.
   - **multi-step writes with no transaction** (order + order items + stock + payment) that leave
     partial state if a step fails;
   - stock/counter updates done as read-modify-write instead of an atomic update.
-- **2c – unnecessary database work:**
-  - N+1 queries (a query inside a loop);
-  - `SELECT *` where few columns are used;
-  - filtering, sorting or pagination done in code after fetching everything;
-  - the same query repeated in one request;
-  - missing indexes on columns used for filters/joins (when the schema is visible);
-  - counting by fetching rows.
 
-  The fix explains how to cut load on both the backend and the DB (join, `IN (...)`, batch, select
-  columns, push the filter into SQL, add an index).
+Query speed (N+1, `SELECT *`, missing indexes, filtering in code) is not part of this check. It
+belongs to `/check-backend-performance`, so don't report it here.
 
 ### 3. Test suite
 Use `tests.json` from `run_tests.py`.

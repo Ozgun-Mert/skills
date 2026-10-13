@@ -157,7 +157,37 @@ def plan_check(root, entry, index, full, stale):
     plan["prep_commands"] = prep
     if "secrets" in keys:
         plan["secrets"] = index.get("secrets")
+    if entry.get("needs_profile"):
+        plan["project_url"] = index.get("project_url") or index.get("detected_url")
+        plan["profile_file"] = f"{C.STATE_DIR}/profile.json".replace("\\", "/")
+        plan.update(architecture_research(root, index))
     return plan
+
+
+def architecture_research(root, index):
+    """Is the cached architecture research (section 4) still valid? Valid for 90 days while the stack is unchanged."""
+    path = C.state_path(root, "research", "architecture.json")
+    fp = stack_fingerprint(index)
+    res = C.load_json(path)
+    fresh = False
+    if res and res.get("stack_fingerprint") == fp and res.get("researched_at"):
+        try:
+            t = dt.datetime.fromisoformat(res["researched_at"])
+            fresh = (dt.datetime.now(t.tzinfo) - t).days < 90
+        except ValueError:
+            pass
+    return {"research_file": f"{C.STATE_DIR}/research/architecture.json".replace("\\", "/"), "research_fresh": fresh,
+            "stack_fingerprint": fp}
+
+
+def stack_fingerprint(index):
+    st = index.get("stack") or {}
+    parts = sorted(f["name"] for f in st.get("frameworks", []) + st.get("data", []))
+    parts += sorted(f"{r['product']}" for r in index.get("runtime", []))
+    parts += sorted((st.get("languages") or {}).keys())
+    prof = C.load_json(os.path.join(index.get("root", "."), C.STATE_DIR, "profile.json"), {}) or {}
+    parts.append(f"scale={prof.get('scale', '?')}")
+    return "|".join(parts)
 
 
 def main():

@@ -7,7 +7,7 @@ script copies it into `~/.claude/skills/` so the slash command works in every pr
 |---|---|---|
 | [stock-analyzer](stock-analyzer/) | `/analyze-stock` | Data-driven, multi-agent stock analysis with a shareable dashboard |
 | [seo-optimizer](seo-optimizer/) | `/optimize-seo` | People-first SEO: keyword research, intent → page map, pages and technical SEO, with approval at every step |
-| [backend-checker](backend-checker/) | `/check-backend-security` · `/check-backend-code-quality` · `/check-backend-health` | Backend security audit and code-quality review as gitignored reports in `docs/`, incremental and token-efficient |
+| [backend-checker](backend-checker/) | `/check-backend-security` · `/check-backend-code-quality` · `/check-backend-performance` · `/check-backend-health` | Backend security audit, code-quality review and performance review as gitignored reports in `docs/`, incremental and token-efficient |
 | [make-no-mistakes](make-no-mistakes/) | `/make-no-mistakes` | Researches, interviews you, plans in detail, then builds the whole app (or a feature) with parallel headless `/goal` workers, a mandatory security gate and SEO-ready UI |
 | [frontend-developer](frontend-developer/) | `/develop-frontend` | Builds a frontend with award-level UI/UX on shadcn/ui + React Bits (lots of animation in Fancy segments): finds the project brief and backend contract (or mocks it), researches similar sites, lets you pick a style per segment, then iterates with a screenshot-only "user" agent and a "front" agent until the user has no complaints |
 
@@ -314,11 +314,12 @@ seo-optimizer/
 
 ---
 
-## backend-checker — `/check-backend-security` · `/check-backend-code-quality` · `/check-backend-health`
+## backend-checker — `/check-backend-security` · `/check-backend-code-quality` · `/check-backend-performance` · `/check-backend-health`
 
 ```
 /check-backend-security api web
 /check-backend-code-quality api packages/shared
+/check-backend-performance api --url https://api.example.com
 /check-backend-health api web packages/shared
 /check-backend-health api --full
 ```
@@ -332,6 +333,7 @@ the frontend or prices the backend trusts from the client. Any language or frame
 |---|---|---|
 | `/check-backend-security` | Security agent | `docs/SECURITY_PROBLEMS.md` |
 | `/check-backend-code-quality` | Code-quality agent | `docs/CODE_QUALITY.md` |
+| `/check-backend-performance` | Performance agent | `docs/PERFORMANCE.md` |
 | `/check-backend-health` | Every check in `core/registry.json`, in parallel | all reports |
 
 ### What the reports cover
@@ -341,7 +343,7 @@ the frontend or prices the backend trusts from the client. Any language or frame
 | Section | Topic |
 |---|---|
 | 1a, 1b | Vulnerable/EOL runtime and libraries with the closest safe version (live OSV.dev + endoflife.date); secrets in git (incl. history) or exposed to the frontend |
-| 2a–2c | SQL/NoSQL injection; illogical data operations (FKs, cascades, missing transactions); unnecessary DB work (N+1, over-fetching) |
+| 2a, 2b | SQL/NoSQL injection; illogical data operations (FKs, cascades, missing transactions). Query speed is in the performance report |
 | 3 | Runs the existing test suite: failing tests with one-sentence reasons, or "Test suite should be implemented" |
 | 4a, 4b | Questionable business rules (you're asked whether each is intended; answers are remembered); crash/corruption logic (math, nulls, stale cache) |
 | 5a, 5b | IDOR and mass assignment; trusting frontend values (prices, totals, roles) |
@@ -354,6 +356,30 @@ extensibility (e.g. adding a payment method), long functions/files and nesting, 
 values, error-handling consistency, response/naming consistency, hardcoded dependencies, and weak or
 duplicated types. It ends with a refactor roadmap ordered by impact ÷ effort.
 
+**Performance** (impact + effort, plans with the expected gain, no code; ends with an optimization
+roadmap):
+
+| # | Section | What it looks for |
+|---|---|---|
+| 1 | SQL queries | 38 catalogued patterns: N+1, writes in loops, two UPDATEs on one row, `SELECT *`, select-then-update / check-then-insert instead of `RETURNING`/upsert, count + list, filtering/paging in code, deep `OFFSET`, non-sargable WHERE, `NOT IN`, correlated subqueries, Mongo/Redis equivalents… (`core/references/performance-patterns.md`) |
+| 2 | Algorithmic complexity | O(n²) lookups and joins in loops, hand-written sorts (built-in suggested, or heap/merge sort if hand-written is intentional), missing memoization, string building in loops |
+| 3 | Caching | Hot, rarely-changing reads with no cache; key, TTL and invalidation for each |
+| 4 | Architecture | Database, language, framework and library fit for the project's scale and domain, researched online and cached for 90 days |
+| 5 | Connections & latency | Where the DB, backend and Redis run (config + IaC + hostnames), live DNS/TCP/HTTP timings, distance between components |
+| 6 | Database indexes | Missing (incl. foreign keys), composite order, redundant and unused indexes, with `CREATE INDEX` statements |
+| 7 | Pagination & payload size | Unbounded lists, oversized responses, no compression |
+| 8 | Async & blocking work | Blocking I/O in async handlers, serial awaits, work that belongs in a job queue |
+| 9 | Connection pooling & timeouts | Clients created per request, pool sizing, keep-alive, missing timeouts |
+| 10 | Memory usage | Whole-table/whole-file loads, unbounded in-process caches, leaks |
+| 11 | External API calls | Third-party calls in loops, repeated calls, no retry/backoff |
+| 12 | HTTP caching & CDN | Cache headers, ETags, static files and uploads through the app |
+| 13 | Cold start & startup | Heavy startup work, per-request work that could run once |
+
+Scale and intent change the advice: SQLite can be right for a small project, and a course project may
+have to keep its hand-written sort. So the check infers a **project profile** from the README, the
+dependencies and the code size. If something stays unclear (expected traffic, whether hand-written
+algorithms are intentional), it asks once and saves the answer in `docs/.backend-checks/profile.json`.
+
 Reports are overwritten on every run. **A fixed problem disappears completely** from the report;
 there is no "fixed since last run" section.
 
@@ -362,7 +388,7 @@ there is no "fixed since last run" section.
 | Phase | What |
 |---|---|
 | 0 Preflight (scripts, no LLM) | `.gitignore` lines; `index.py` builds a map of files, hashes, import graph, stack, runtime, every dependency version, hotspot lines per topic, secrets scan, and test command; `plan.py` decides what each check must analyze |
-| 1 Prep (scripts) | `osv_check.py` (vulnerabilities and EOL, cached 7 days), `dupes.py` (duplicate blocks), `quality_scan.py` (long functions, magic values, dead code, weak types) |
+| 1 Prep (scripts) | `osv_check.py` (vulnerabilities and EOL, cached 7 days), `dupes.py` (duplicate blocks), `quality_scan.py` (long functions, magic values, dead code, weak types), `perf_scan.py` (queries/HTTP/awaits in loops, `SELECT *`, unbounded queries, O(n²) patterns, blocking calls in async code, clients per request, missing timeouts, unbounded caches, startup work), `net_probe.py` (hosts, regions, live latency); `profile.py` asks the profile questions once |
 | 2 Agents | One check: one subagent. Health: the orchestrator reads the bundled code **once**, then forks one agent per check in one message, so they share it through the prompt cache (falls back to parallel subagents) |
 | 3 Merge | `findings.py` merges agent JSON with earlier findings: re-analyzed files are replaced, unchanged ones carried over, fixed ones vanish; 4a questions are asked once and remembered |
 | 4 Render | `findings.py render` writes the markdown with a summary table; the reply lists counts and what to fix first |
@@ -373,10 +399,21 @@ re-analyzed. With no changes no agent runs at all. `--full` forces a complete sc
 
 ### Privacy
 
-`docs/SECURITY_PROBLEMS.md`, `docs/CODE_QUALITY.md` and `docs/.backend-checks/` are added to
-`.gitignore`, because the security report is a map of your weaknesses. Secret values are masked
-(first 4 characters only). Only package names and versions are sent to external services (OSV,
-endoflife.date, npm/PyPI registries); source code never leaves the machine.
+All reports (`docs/SECURITY_PROBLEMS.md`, `docs/CODE_QUALITY.md`, `docs/PERFORMANCE.md`) and
+`docs/.backend-checks/` are added to `.gitignore`, because the security report is a map of your
+weaknesses. Secret values are masked (first 4 characters only). Source code never leaves the machine.
+
+What does go out:
+- Package names and versions: OSV, endoflife.date, npm/PyPI registries.
+- From the performance check:
+  - web searches about the project's domain and scale;
+  - IP addresses of the hosts found in config, in one ip-api.com geo lookup;
+  - TCP connects (no login, no protocol traffic) to those hosts;
+  - up to 8 GET requests to the project's own URL (`--url`, or one detected from CORS/env/README).
+
+The probe reads `.env` files only for the scheme, host and port of URLs like `DATABASE_URL`;
+credentials are never stored. Timings are measured from your machine, so links between servers
+(DB ↔ backend ↔ Redis) are judged by region and distance.
 
 ### Install
 
@@ -416,6 +453,14 @@ python backend-checker/core/scripts/osv_check.py --root .
 ```
 
 ```bash
+python backend-checker/core/scripts/perf_scan.py --root .
+```
+
+```bash
+python backend-checker/core/scripts/net_probe.py --root .
+```
+
+```bash
 python backend-checker/core/scripts/findings.py render --root . --check security
 ```
 
@@ -427,13 +472,15 @@ backend-checker/
 ├── skills/                    # thin entry points, one per slash command
 │   ├── check-backend-security/SKILL.md
 │   ├── check-backend-code-quality/SKILL.md
+│   ├── check-backend-performance/SKILL.md
 │   └── check-backend-health/SKILL.md
 ├── core/                      # copied into every installed skill
 │   ├── registry.json          # every check; health runs them all
 │   ├── agents/                # agent-contract.md + one brief per check
-│   ├── references/            # pipeline.md (orchestrator), sections-*.json, framework-equivalents.md
-│   └── scripts/               # index, plan, bundle, osv_check, dupes, quality_scan, run_tests,
-│                              # findings (merge/questions/decide/render), ensure_gitignore
+│   ├── references/            # pipeline.md (orchestrator), sections-*.json, framework-equivalents.md,
+│   │                          # performance-patterns.md (SQL/complexity/index catalogs)
+│   └── scripts/               # index, plan, bundle, osv_check, dupes, quality_scan, perf_scan, net_probe,
+│                              # profile, run_tests, findings (merge/questions/decide/render), ensure_gitignore
 └── evals/evals.json           # scenarios on seeded Express and FastAPI fixtures
 ```
 
@@ -597,9 +644,10 @@ make-no-mistakes/
 ```
 
 Run it in a project folder. It works out what the project is and how the frontend gets its data, then
-researches and plans with you, builds the frontend, and polishes it in rounds. A "user" agent that has
-never seen the site tries real tasks through screenshots, and a "front" agent fixes everything that
-user found broken, confusing, wordy or ugly. The rounds stop when the user has no complaints left.
+researches and plans with you, builds the frontend from **shadcn/ui** components and **React Bits**
+animations, and polishes it in rounds. A "user" agent that has never seen the site tries real tasks
+through screenshots, and a "front" agent fixes everything that user found broken, confusing, wordy or
+ugly. The rounds stop when the user has no complaints left.
 
 ### How a run works
 
@@ -608,17 +656,17 @@ user found broken, confusing, wordy or ugly. The rounds stop when the user has n
 | 0 Preflight | Adds `/DESIGN/` to `.gitignore` (always, in every project), checks Playwright, resumes from `DESIGN/.work/state.json` | — |
 | 1 Context | `find_docs.py` ranks every .md/.txt as the **project description** and as the **backend contract**. Uses `PROJECT.md` / `FRONTEND.md`, a link, or the best match. No contract → asks **Yes / Not implemented / No**. Not implemented = builds against a mock layer behind the same API client and writes `FRONTEND.md` for the backend developer | Describe the project if nothing is found; answer the backend question |
 | 2 Research | Web searches in English **and** the local language (e.g. Wolt + Yemeksepeti + QR-menu products for a Turkish QR menu) → `DESIGN/similar-sites.md`, `ux-patterns.md`, `normal-polished.md`, `brand.md` (our own fonts and palette, different from competitors, contrast-checked). Skipped when `DESIGN/` already has it | — |
-| 3 Styles | One question per segment (landing, panels, catalog, checkout, blog, docs…): **Fancy / Normal / Strict / Playful** | Pick a style per segment |
-| 4 Plan | Page plan (route, purpose, style, data, components, states) + task table | Approve or change |
+| 3 Styles | One question per segment (landing, panels, catalog, checkout, blog, docs…): **Fancy** (lots of React Bits animation) / **Normal** (shadcn, light motion) / **Strict** (content-first, no motion) / **Playful** (micro-interactions) | Pick a style per segment |
+| 4 Plan | Page plan (route, purpose, style, data, components as `ui:` shadcn / `RB:` React Bits, states, motion budget for Fancy pages) + task table | Approve or change |
 | 5 Build | React (Next.js / Astro / Vite) + Tailwind v4 + **shadcn/ui** themed from `brand.md` + **React Bits** motion (Fancy: animated headline, WebGL background, CTA effect, every section animates in, 8 or more pieces per page; Playful: micro-interactions; Normal: light; Strict: none). API client (real or mock, with `?mock=empty` / `?mock=error`), pages with loading/empty/error/success states | — |
 | 6 Review loop | Each round: a **fresh user agent** (persona from your real users, goal-only tasks, sees only `shoot.py` / `browse.py` / `ui_audit.py` screenshots) writes `user-report.md`; the **front agent** fixes root causes citing UX principles and writes `front-report.md`; the main agent arbitrates rejections. Repeats until there are no complaints and every plan task is done (check-in after round 6) | Only if asked to continue after round 6 |
-| 7 Final check | Build/lint/typecheck/tests, `ui_audit --fail-on major` on every route and width, final screenshots, flows replayed, no leftovers | Read the report |
+| 7 Final check | Build/lint/typecheck/tests, `ui_audit --fail-on major` on every route and width (light, dark, and `--reduced-motion`; no content stuck invisible, no WebGL on phones), final screenshots, flows replayed, no leftovers | Read the report |
 
 ### Design knowledge it ships with (`design/`)
 
 | File | From |
 |---|---|
-| `fancy.md` | Awwwards Sites of the Year / Month / Day up to Oct 2026: palettes, fonts (read from the live sites), motion stack (GSAP, Lenis, WebGL), layout patterns, plus a "fancy but usable" contract |
+| `fancy.md` | Awwwards Sites of the Year / Month / Day up to Oct 2026: palettes, fonts (read from the live sites), motion stack (GSAP, Lenis, WebGL) mapped to React Bits components, layout patterns, plus a "fancy but usable" contract |
 | `normal.md` | Conventions from the most-visited sites (Google, YouTube, Amazon, Instagram, ChatGPT, Wikipedia…) and big design systems. General rules, polished per project |
 | `strict.md` | GOV.UK, Wikipedia, Stripe/MDN docs and editorial sites: content-first reading and forms |
 | `playful.md` | Duolingo, Headspace, Notion marketing and similar sites: friendly, colorful, rewarding |
@@ -639,7 +687,9 @@ The frontend code goes into the project as usual, plus `FRONTEND.md` in mock mod
 
 ### Install
 
-Requires Python 3.10+ and Playwright with Chromium (installed by the script).
+Requires Python 3.10+ and Playwright with Chromium (installed by the script). The projects it builds
+also need Node.js, because the shadcn CLI (`npx shadcn@latest`) installs shadcn/ui and React Bits
+components.
 
 ```bash
 powershell -ExecutionPolicy Bypass -File frontend-developer/install.ps1

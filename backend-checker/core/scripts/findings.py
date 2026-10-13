@@ -147,9 +147,12 @@ def cmd_merge(root, entry):
     check = entry["id"]
 
     kept = []
+    valid_sections = {s["id"] for s in C.load_sections(entry)["sections"]}
     if plan["mode"] == "incremental":
         for f in prev.get("findings", []):
             if f.get("file") in analyzed or f.get("file") in deleted or f.get("section") in rerun:
+                continue
+            if f.get("section") not in valid_sections:  # section removed or moved to another check
                 continue
             if f.get("file") and not os.path.exists(os.path.join(root, f["file"])):
                 continue
@@ -171,7 +174,8 @@ def cmd_merge(root, entry):
     decisions = C.load_json(p["decisions"], {})
     merged = apply_decisions(check, merged, decisions)
 
-    notes = {} if plan["mode"] == "full" else {k: v for k, v in (prev.get("section_notes") or {}).items() if k not in rerun}
+    notes = {} if plan["mode"] == "full" else {k: v for k, v in (prev.get("section_notes") or {}).items()
+                                                  if k not in rerun and k in valid_sections}
     for k, v in (new.get("section_notes") or {}).items():
         if v:
             notes[k] = C.mask_text(v)
@@ -357,7 +361,7 @@ def cmd_render(root, entry):
     ev = {"S": 1, "M": 2, "L": 3}
     scored = sorted(findings, key=lambda f: (-(iv.get(f.get("impact"), 1) / ev.get(f.get("effort"), 2)), ids[f["fingerprint"]]))
     if secs.get("roadmap") and findings:
-        L += ["## Refactor roadmap", "", "Ordered by impact ÷ effort. Items in the same group are best done together.", ""]
+        L += [f"## {secs.get('roadmap_title', 'Refactor roadmap')}", "", "Ordered by impact ÷ effort. Items in the same group are best done together.", ""]
         done, n = set(), 0
         for f in scored:
             if f["fingerprint"] in done:

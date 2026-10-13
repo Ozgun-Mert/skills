@@ -56,6 +56,16 @@
       "scripted_answers": "Any 4a question: 'Not sure – report as Low'. The WELCOME10 coupon question was already answered in the previous run and must not be asked again.",
       "expected_output": "Incremental run: only products.py (and files importing it) re-analyzed, other findings carried over; the SQL injection finding is gone entirely (no 'fixed' section); no 4a question re-asked; header says incremental; far fewer tokens than eval 3.",
       "files": []
+    },
+    {
+      "id": 6,
+      "name": "performance-express-shop",
+      "fixture": "express + pg shop with an N+1, two UPDATEs per item in a loop, SELECT *, a bubble sort, includes() inside filter, a Pool created per request, axios with no timeout, readFileSync in a handler, a module-level Map cache, a Python job with blocking calls in async def, fly.toml in fra and DATABASE_URL in us-east-1",
+      "skill": "check-backend-performance",
+      "prompt": "/check-backend-performance api --url https://example.com",
+      "scripted_answers": "Profile questions: scale 'small'; hand-written algorithms intentional: No.",
+      "expected_output": "Only docs/PERFORMANCE.md with 13 numbered sections and an optimization roadmap; N+1 and UPDATE-in-loop in section 1 with set-based fixes; bubble sort → built-in sort (O(n log n)) and includes-in-filter → Set in section 2; cross-region fra vs us-east-1 in section 5 with the note that timings are measured from the user's machine; Pool per request + missing axios timeout in 9; readFileSync / blocking calls in 8; Map cache in 10; no security findings; no 2c in SECURITY_PROBLEMS.md",
+      "files": []
     }
   ]
 }

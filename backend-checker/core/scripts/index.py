@@ -520,6 +520,41 @@ def scan_secrets(root, is_repo, api_files, extra_files):
     out["source_hits"] = uniq[:200]
     return out
 
+# --------------------------------------------------------------------------- project domain
+
+URL_RX = re.compile(r"https://[A-Za-z0-9.\-]+\.[A-Za-z]{2,}(?::\d+)?")
+URL_CONTEXT = re.compile(r"(?i)(origin|cors|api_?url|app_?url|base_?url|public_?url|site_?url|frontend_?url|backend_?url|domain|host|live|production|deployed|website)")
+THIRD_PARTY = re.compile(r"(?i)(^|\.)(example\.(com|org|net)|localhost|github(usercontent)?\.com|gitlab\.com|npmjs\.(com|org)|pypi\.org|"
+                         r"stripe\.com|paypal\.com|iyzipay\.com|googleapis\.com|google\.com|gstatic\.com|cloudflare\.com|jsdelivr\.net|"
+                         r"unpkg\.com|amazonaws\.com|azure\.com|sentry\.io|shields\.io|img\.shields\.io|vercel\.com|netlify\.com|"
+                         r"heroku\.com|docker\.com|python\.org|nodejs\.org|mozilla\.org|w3\.org|schema\.org|twitter\.com|x\.com|"
+                         r"facebook\.com|linkedin\.com|youtube\.com|wikipedia\.org|readthedocs\.io|microsoft\.com|apple\.com|"
+                         r"anthropic\.com|openai\.com|claude\.ai|osv\.dev|endoflife\.date|smtp\.\w+|sms\.\w+|push\.\w+)$")
+
+
+def detect_url(root, texts):
+    """Best guess at the project's own public URL from CORS origins, env examples and README. None if unsure."""
+    scores = {}
+    sources = list(texts)
+    for name in ("README.md", "readme.md", ".env.example", ".env.sample", ".env.template"):
+        t, _ = C.read_text(os.path.join(root, name))
+        if t:
+            sources.append((name, t))
+    for p, text in sources:
+        for line in text.splitlines():
+            if len(line) > 600:
+                continue
+            for m in URL_RX.finditer(line):
+                host = m.group(0)[8:].split(":")[0].lower()
+                if THIRD_PARTY.search(host):
+                    continue
+                s = scores.setdefault(m.group(0), 0)
+                scores[m.group(0)] = s + (3 if URL_CONTEXT.search(line) else 1) + (2 if host.startswith("api.") else 0)
+    if not scores:
+        return None
+    best = max(scores.items(), key=lambda kv: kv[1])
+    return best[0] if best[1] >= 3 else None
+
 # --------------------------------------------------------------------------- main
 
 def main():
@@ -527,6 +562,7 @@ def main():
     ap.add_argument("--root", default=".")
     ap.add_argument("--api", required=True)
     ap.add_argument("--extra", nargs="*", default=[])
+    ap.add_argument("--url", help="the project's public URL (used by the performance check's live latency probe)")
     a = ap.parse_args()
     root = os.path.abspath(a.root)
     api = C.rel(os.path.abspath(a.api), root)
@@ -629,6 +665,8 @@ def main():
         "hotspots": {k: v for k, v in hotspots.items() if v},
         "extra_hotspots": {k: v for k, v in extra_hot.items() if v},
         "secrets": secrets,
+        "project_url": a.url.rstrip("/") if a.url else None,
+        "detected_url": None if a.url else detect_url(root, [(p, t) for p, t in texts.items()] + extra_texts),
         "totals": {"files": len(files), "source_files": sum(1 for f in files.values() if not f.get("test")),
                    "lines": sum(f["lines"] for f in files.values()), "tokens": sum(f["tokens"] for f in files.values() if not f.get("test")),
                    "extra_files": len(extra_files), "dependencies": len(deps)},
@@ -648,6 +686,7 @@ def main():
                     "history_secret_commits": len(secrets["history_secret_commits"]), "source_hits": len(secrets["source_hits"]),
                     "frontend_env": len(secrets["frontend_env"])},
         "hotspot_files": {k: len(v) for k, v in index["hotspots"].items()},
+        "url": index["project_url"] or (f"{index['detected_url']} (detected)" if index["detected_url"] else None),
     }
     print(json.dumps(summary, ensure_ascii=False, indent=1))
     return 0
