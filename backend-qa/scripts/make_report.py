@@ -1,0 +1,270 @@
+"""Render qa/TEST_FAILED.md from results.json + analysis.json + function-map.json + TEST_DECISIONS.md.
+
+Refuses (exit 1) while any failed/errored test has no entry in qa/results/analysis.json, and
+lists those tests. Every location is a clickable VS Code link: vscode://file/<abs path>:<line>:1.
+
+analysis.json (written by the orchestrator after the blame check):
+  {"failures": [{"test" | "tests": key(s) from results.json, "category": code_bug|flaky|environment|test_bug,
+                 "decisions": [...], "title", "expected", "actual", "why",
+                 "where": [{"file", "line", "note"}], "fix": [steps…], "severity": high|medium|low}],
+   "test_fixes": [{"test", "what"}], "notes": [...]}
+
+Usage: python make_report.py --root . [--min-coverage 60]
+"""
+import argparse
+import os
+import re
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import common as C  # noqa: E402
+
+SEV_ORDER = {"high": 0, "medium": 1, "low": 2}
+SEV_ICON = {"high": "🔴", "medium": "🟠", "low": "🟡"}
+CATEGORIES = [("code_bug", "Code bugs"), ("flaky", "Flaky tests"), ("environment", "Environment problems"),
+              ("test_bug", "Test bugs left (not the app's fault)")]
+
+
+def decision_texts(root):
+    text = C.read_text(C.qa_path(root, "TEST_DECISIONS.md")) or ""
+    out = {}
+    for line in text.splitlines():
+        if not line.strip().startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if cells and C.DECISION_ID.match(cells[0].strip("` *")):
+            cid = cells[0].strip("` *")
+            if cid.startswith("S-") and len(cells) >= 5:
+                out[cid] = f"{cells[1]} · {cells[2]}: allowed {cells[3]}; denied → {cells[4]}"
+            elif len(cells) >= 3:
+                out[cid] = f"{cells[1]} → {cells[2]}"
+    return out
+
+
+def find_line(root, relfile, needles):
+    text = C.read_text(os.path.join(root, relfile)) if relfile else None
+    if not text:
+        return 1
+    lines = text.splitlines()
+    for needle in needles:
+        if not needle:
+            continue
+        n = needle[:60]
+        for i, l in enumerate(lines):
+            if n in l:
+                return i + 1
+    return 1
+
+
+def link(root, relfile, line, label=None):
+    if not relfile:
+        return label or "(unknown file)"
+    return f"[{label or f'{relfile}:{line}'}]({C.vscode_link(root, relfile, line)})"
+
+
+def md(s):
+    return (s or "").replace("|", "\\|").replace("\n", " ").strip()
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--root", default=".")
+    ap.add_argument("--min-coverage", type=float, default=60.0)
+    a = ap.parse_args()
+    root = os.path.abspath(a.root)
+
+    res = C.load_json(C.qa_path(root, "results", "results.json"))
+    if not res:
+        print("qa/results/results.json missing: run run_tests.py first")
+        return 1
+    analysis = C.load_json(C.qa_path(root, "results", "analysis.json"), {}) or {}
+    fmap = C.load_json(C.qa_path(root, "function-map.json"), {}) or {}
+    funcs = {f["id"]: f for f in fmap.get("functions", [])}
+    state = C.load_state(root)
+    decided_ids = {v.get("id") for v in (state.get("functions") or {}).values() if v.get("status") == "decided"}
+    dtext = decision_texts(root)
+    tests = res.get("tests", [])
+    by_key = {t["key"]: t for t in tests}
+
+    entries = []
+    covered = set()
+    for e in analysis.get("failures", []):
+        keys = e.get("tests") or ([e["test"]] if e.get("test") else [])
+        keys = [k for k in keys if k in by_key] or keys
+        covered.update(keys)
+        entries.append(dict(e, _keys=keys))
+    failing = [t for t in tests if t["status"] in ("failed", "error")]
+    missing = [t["key"] for t in failing if t["key"] not in covered]
+    if missing:
+        print(f"{len(missing)} failing test(s) have no analysis entry in qa/results/analysis.json:")
+        for k in missing:
+            print(f"  {k}")
+        return 1
+    bad = [e for e in entries if e.get("category") not in dict(CATEGORIES)]
+    if bad:
+        print("analysis entries with an unknown category (use code_bug|flaky|environment|test_bug): " +
+              ", ".join(str(e.get("_keys")) for e in bad))
+        return 1
+    code_in_fix = [e for e in entries if any(re.search(r"```|;\s*$|\breturn\b.*;|=>|\bdef \w+\(|\bfunction \w+\(", s or "")
+                                             for s in e.get("fix") or [])]
+    if code_in_fix:
+        print("warning: some fix steps look like code; the report must explain the process only: " +
+              ", ".join(str(e.get("_keys")[:1]) for e in code_in_fix))
+
+    s = res.get("summary", {})
+    cats = {c: [e for e in entries if e.get("category") == c] for c, _ in CATEGORIES}
+    sev = {k: sum(1 for e in cats["code_bug"] if (e.get("severity") or "medium") == k) for k in SEV_ORDER}
+    out = []
+    out.append("# Test failures")
+    out.append("")
+    out.append(f"> Generated by /qa-backend on {res.get('generated_at', '')[:16].replace('T', ' ')} · "
+               f"full suite: `{res.get('command') or res.get('junit_command')}`")
+    out.append(">")
+    out.append(f"> **{s.get('total', 0)} tests** · ✅ {s.get('passed', 0)} passed · ❌ {s.get('failed', 0)} failed · "
+               f"⚠️ {s.get('errors', 0)} errors · ⏭️ {s.get('skipped', 0)} skipped · "
+               f"functions failing: {s.get('functions_failing', 0)} of {s.get('functions_tested', 0)}")
+    out.append(f"> **Code bugs: {len(cats['code_bug'])}** (🔴 high {sev['high']} · 🟠 medium {sev['medium']} · "
+               f"🟡 low {sev['low']}) · flaky {len(cats['flaky'])} · environment {len(cats['environment'])} · "
+               f"test bugs left {len(cats['test_bug'])}")
+    for n in analysis.get("notes") or []:
+        out.append(f"> {n}")
+    out.append("")
+    out.append("Links open the exact line in VS Code. Fix steps describe the process; this report contains no code.")
+    out.append("")
+
+    # ------------------------------------------------------------- functions table
+    per = res.get("per_function", {})
+    cov = ((res.get("coverage") or {}).get("functions")) or {}
+    cat_by_key = {}
+    for e in entries:
+        for k in e["_keys"]:
+            cat_by_key[k] = e.get("category")
+    fn_cats = {}
+    for t in failing:
+        fn_cats.setdefault(t.get("function") or "(existing tests)", set()).add(cat_by_key.get(t["key"]))
+    rows = []
+    for fid, e in per.items():
+        f = funcs.get(fid)
+        nfail = e.get("failed", 0) + e.get("errors", 0)
+        total = nfail + e.get("passed", 0)
+        cs = fn_cats.get(fid, set())
+        if nfail and "code_bug" in cs:
+            result, order = f"❌ {nfail} failed", 0
+        elif nfail:
+            result, order = "⚠️ " + ", ".join(sorted(c.replace("_", " ") for c in cs if c)), 1
+        else:
+            result, order = "✅ passed", 2
+        name = f"{fid} {f['name']}" if f else fid
+        label = link(root, f["file"], f["start"], name) if f else name
+        route = f"`{f['route']['method']} {f['route']['path']}`" if f and f.get("route") else ""
+        c = f"{cov[fid]:.0f}%" if fid in cov else "–"
+        rows.append((order, fid, f"| {label} | {route} | {e.get('passed', 0)}/{total} | {result} | {c} |"))
+    out.append("## Functions")
+    out.append("")
+    out.append("| Function | Route | Passed | Result | Line coverage |")
+    out.append("|---|---|---|---|---|")
+    for _o, _f, r in sorted(rows, key=lambda x: (x[0], x[1])):
+        out.append(r)
+    out.append("")
+
+    # ------------------------------------------------------------- failures by category
+    def render(e, detailed=True):
+        keys = e["_keys"]
+        t0 = by_key.get(keys[0]) if keys else None
+        fid = (t0 or {}).get("function")
+        f = funcs.get(fid)
+        sevv = (e.get("severity") or "medium") if e.get("category") == "code_bug" else None
+        head = f"### {SEV_ICON[sevv] + ' ' + sevv + ' · ' if sevv else ''}{(fid + ' ' + f['name']) if f else (fid or 'existing tests')} — {e.get('title') or (t0 or {}).get('name', '')}"
+        out.append(head)
+        out.append("")
+        for k in keys:
+            t = by_key.get(k, {"name": k, "file": None})
+            tl = t.get("line") or find_line(root, t.get("file"), [t.get("name"), *(t.get("decisions") or [])])
+            out.append(f"- **Test:** `{md(t.get('name'))}` · {link(root, t.get('file'), tl)}")
+        decs = e.get("decisions") or sorted({d for k in keys for d in (by_key.get(k, {}).get("decisions") or [])})
+        for d in decs:
+            out.append(f"- **Decision {d}:** {md(dtext.get(d, '(not found in TEST_DECISIONS.md)'))}")
+        if e.get("expected"):
+            out.append(f"- **Expected:** {md(e['expected'])}")
+        if e.get("actual"):
+            out.append(f"- **Actual:** {md(e['actual'])}")
+        elif t0 and t0.get("message"):
+            out.append(f"- **Actual:** {md(t0['message'].splitlines()[0][:300])}")
+        if e.get("why"):
+            out.append(f"- **Why:** {md(e['why'])}")
+        where = e.get("where") or []
+        if where:
+            out.append("- **Where:**")
+            for w in where:
+                out.append(f"  - {link(root, w.get('file'), w.get('line') or 1)}" + (f" — {md(w.get('note'))}" if w.get("note") else ""))
+        elif f:
+            out.append(f"- **Where:** {link(root, f['file'], f['start'])} (function)")
+        steps = e.get("fix") or []
+        if steps:
+            out.append("- **How to fix:**")
+            for i, st in enumerate(steps, 1):
+                out.append(f"  {i}. {md(st)}")
+        out.append("")
+
+    for cat, title in CATEGORIES:
+        items = cats[cat]
+        if cat == "code_bug":
+            items = sorted(items, key=lambda e: (SEV_ORDER.get(e.get("severity") or "medium", 1), e.get("title") or ""))
+        out.append(f"## {title} ({len(items)})")
+        out.append("")
+        if not items:
+            out.append("None.")
+            out.append("")
+            continue
+        for e in items:
+            render(e)
+
+    fixes = analysis.get("test_fixes") or []
+    out.append(f"## Tests corrected during the run ({len(fixes)})")
+    out.append("")
+    if fixes:
+        for fx in fixes:
+            out.append(f"- `{md(fx.get('test'))}` — {md(fx.get('what'))}")
+    else:
+        out.append("None.")
+    out.append("")
+
+    # ------------------------------------------------------------- coverage gaps
+    tested = {k for k, e in per.items() if k.startswith("F")}
+    untested = sorted(i for i in decided_ids if i and i not in tested and i in funcs)
+    low = sorted((fid, p) for fid, p in cov.items() if fid in decided_ids and p < a.min_coverage)
+    out.append("## Coverage gaps")
+    out.append("")
+    if not untested and not low:
+        out.append("No decided function is untested" + ("" if cov else " (coverage did not run)") + ".")
+    if untested:
+        out.append("Decided functions with no test that ran:")
+        out.append("")
+        for fid in untested:
+            f = funcs[fid]
+            out.append(f"- {link(root, f['file'], f['start'], fid + ' ' + f['name'])}")
+        out.append("")
+    if low:
+        out.append(f"Functions under {a.min_coverage:.0f}% line coverage (branches the decisions don't reach yet; "
+                   "worth a question on the next run):")
+        out.append("")
+        for fid, p in low:
+            f = funcs.get(fid)
+            out.append(f"- {link(root, f['file'], f['start'], fid + ' ' + f['name']) if f else fid} — {p:.0f}%")
+        out.append("")
+    if not (res.get("coverage") or {}).get("functions"):
+        out.append("_Coverage was not collected in this run._")
+        out.append("")
+
+    out.append("---")
+    out.append("Re-run after fixing: `/qa-backend --report` (runs the full suite and regenerates this file).")
+    path = C.qa_path(root, "TEST_FAILED.md")
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("\n".join(out) + "\n")
+    print(f"written: qa/TEST_FAILED.md · code bugs {len(cats['code_bug'])} · flaky {len(cats['flaky'])} · "
+          f"environment {len(cats['environment'])} · test bugs {len(cats['test_bug'])} · untested functions {len(untested)}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -10,6 +10,7 @@ script copies it into `~/.claude/skills/` so the slash command works in every pr
 | [backend-checker](backend-checker/) | `/check-backend-security` · `/check-backend-code-quality` · `/check-backend-performance` · `/check-backend-health` | Backend security audit, code-quality review and performance review as gitignored reports in `docs/`, incremental and token-efficient |
 | [make-no-mistakes](make-no-mistakes/) | `/make-no-mistakes` | Researches, interviews you, plans in detail, then builds the whole app (or a feature) with parallel headless `/goal` workers, a mandatory security gate and SEO-ready UI |
 | [frontend-developer](frontend-developer/) | `/develop-frontend` | Builds a frontend with award-level UI/UX on shadcn/ui + React Bits (lots of animation in Fancy segments): finds the project brief and backend contract (or mocks it), researches similar sites, lets you pick a style per segment, then iterates with a screenshot-only "user" agent and a "front" agent until the user has no complaints |
+| [backend-qa](backend-qa/) | `/qa-backend` | QA test writer: maps every function and endpoint, interviews you (multiple choice) about intent, edge cases and who may reach which data, saves the answers so they are never re-asked, has one `/goal` worker write the tests wired to your test script, attacks every endpoint (invalid/missing input, IDOR, mass assignment), then reports real bugs with VS Code links and a fix process. Never edits app code |
 
 ---
 
@@ -743,5 +744,109 @@ frontend-developer/
 │                           # persona-user, persona-front, review loop, final check
 ├── templates/              # FRONTEND.md, plan.md, user-report.md, front-report.md
 ├── scripts/                # common, ensure_gitignore, find_docs, shoot, browse, ui_audit
+└── evals/evals.json        # scenarios with scripted answers
+```
+
+---
+
+## backend-qa — `/qa-backend`
+
+```
+/qa-backend
+/qa-backend api
+/qa-backend --only auth,F012
+/qa-backend --report
+```
+
+Run it in a backend project. It writes **tests, never fixes**. Every expected result comes from a
+decision you made: the skill asks, you pick an option (or write your own in the "Other" box), and
+the answer is saved in `qa/TEST_DECISIONS.md`. It asks only what isn't obvious: not "should a wrong
+password log in?", but "after how many failed logins is the IP blocked, for how long, and is a
+spoofed `X-Forwarded-For` still blocked?".
+
+### How a run works
+
+| Phase | What | You |
+|---|---|---|
+| 0 Preflight | Adds `/qa/` and `.env.test` to `.gitignore`, checks `claude --version`, resumes from `qa/state.json` | — |
+| 1 Map | `detect_env.py` (stack, runner, full-suite command, test DB, external services and their key mode) and `map_functions.py` (every function and route with a stable ID `F001…`, kind, body hash, status new/changed/unchanged/moved/removed). Trivial code is dropped, the rest grouped into modules. `docs/SECURITY_PROBLEMS.md` findings become `SEC-n` decisions | — |
+| 2 Setup | `TEST_DATABASE_URL` found and safe → used. Missing → asked; "no" → throwaway DB (Testcontainers / embedded). Sandbox keys → sandbox; live or none → mocked | At most 2 questions |
+| 3 Scoping | Access matrix: roles × resources × actions, 404 vs 403, sharing (`S-n`). Every endpoint is then attacked against it | Pick options |
+| 4 Interview | Global rules (`G-n`), then module by module: *Ask each* / *Use defaults and show me* / *Skip*. Edge cases: division by zero, rounding, limits, deletion cascades, pagination, time zones, concurrency, idempotency, lockouts. Changed functions on a rerun: diff + "did the intent change?" with concrete options | Pick options |
+| 5 Worker | Writes `qa/goal-prompt.md`, validates it, runs **one** headless `claude -p "/goal …"` worker that writes the tests, wires them to your test script (e.g. `bun run test`) and proves completion (`check_tests.py` → READY) | Auto / accept-edits / stop |
+| 6 Report | Runs the suite with JUnit + coverage, blame-checks each failure (rerun twice → flaky; setup → environment; test contradicts its decision → worker fixes the test; otherwise → code bug), writes `qa/TEST_FAILED.md` | Read the report |
+
+### What it tests on every endpoint
+
+Missing and wrongly typed fields, out-of-range and oversized values, injection probes, unknown and
+server-owned fields (`role`, `owner_id`, `price` — mass assignment), anonymous and forged tokens,
+**another user's id in the path, body or query (IDOR)** with a check that the victim's data is
+unchanged, lower roles on admin routes, list/search/export leaks, client-sent prices and totals,
+double submits and races, rate-limit and lockout bypasses, secrets in responses.
+
+### Test names = report
+
+Each function gets one test group (`F012 orders.createOrder`) and every test title starts with the
+decision it proves (`[F012-D3] quantity 0 → 400, nothing written`). So `bun run test` (or your
+project's command) prints results per function, and the report maps every failure back to the
+decision, the function and the line.
+
+### What you get (`qa/`, gitignored)
+
+| Path | Content |
+|---|---|
+| `TEST_DECISIONS.md` | Every decision: setup, global rules, obvious checks, access matrix, security findings, per-function rows, retired decisions. Never re-asked |
+| `TEST_FAILED.md` | Summary, per-function ✅/❌ table, code bugs by severity with expected vs actual, why, VS Code links (`vscode://file/…:line`) to the app line and the test, and **how to fix as steps (no code)**; flaky, environment, tests corrected, coverage gaps |
+| `goal-prompt.md`, `worker-report.md` | The worker brief and its report |
+| `function-map.json`, `env.json`, `state.json`, `snapshots/` | Map, detected environment, hashes and bodies for change detection |
+| `test-commands.json`, `results/` | Full-suite, JUnit, coverage and single-file commands; results and analysis |
+
+The tests, helpers, test config and test script stay in your project, uncommitted, for you to review.
+
+### Install
+
+Requires Python 3.10+ and Claude Code ≥ 2.1.259 (headless `/goal`).
+
+```bash
+powershell -ExecutionPolicy Bypass -File backend-qa/install.ps1
+```
+
+This copies the skill to `%USERPROFILE%\.claude\skills\qa-backend\`. Re-run it after editing
+anything in `backend-qa/`, then start a new Claude Code session.
+
+### Running the scripts directly
+
+| Script | What it does |
+|---|---|
+| `ensure_gitignore.py` | Adds `/qa/`, `.env.test`, `!.env.test.example` once; verifies with `git check-ignore` |
+| `detect_env.py` | Stack, package manager, runner, full-suite command, existing tests, `TEST_DATABASE_URL` safety (booleans only), externals (sandbox/live/none), docker → `qa/env.json` |
+| `map_functions.py` | Functions + routes for JS/TS, Python, Go, Java, Kotlin, C#, PHP, Ruby, Rust; `--diff F012`, `--accept`, `--skip`, `--retire`, `--list` |
+| `launch_worker.py` | `--check` validates the brief; runs the `/goal` worker; `--resume --message` for fix-ups; `--dry-run` |
+| `run_tests.py` | Runs the JUnit variant of the full suite, maps tests to functions and decisions, flags harness errors, parses lcov / Cobertura / JaCoCo / Go coverage; `--file X --times 2` for flake checks |
+| `check_tests.py` | READY only when every decision has a test, the suite loads, and no application file or non-test manifest field changed |
+| `make_report.py` | Renders `TEST_FAILED.md`; refuses while a failure has no analysis |
+
+### Known limitations
+
+- Function and route detection is heuristic (regex + brace/indent tracking). Multi-line route
+  registrations and Rails `resources` are not linked to handlers; the orchestrator reads the
+  route files to fill gaps.
+- Runners without a JUnit reporter need a dev tool (`gotestsum`, `jest-junit`,
+  `rspec_junit_formatter`, `JunitXml.TestLogger`, `cargo-nextest`).
+- `check_tests.py` verifies the "no app code changed" rule through `git status`; outside a git
+  repository it can only warn.
+
+### Layout
+
+```
+backend-qa/
+├── SKILL.md                # the skill (name: qa-backend)
+├── qa-backend.md           # copy of SKILL.md, kept in sync by install.ps1
+├── install.ps1
+├── references/             # mapping, test-setup, scoping, attack-matrix, interview, edge-cases,
+│                           # goal-prompt, worker-contract, failure-report
+├── templates/              # TEST_DECISIONS.md, goal-prompt.md
+├── scripts/                # common, ensure_gitignore, detect_env, map_functions, launch_worker,
+│                           # run_tests, check_tests, make_report
 └── evals/evals.json        # scenarios with scripted answers
 ```

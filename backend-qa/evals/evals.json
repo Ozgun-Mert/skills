@@ -1,0 +1,42 @@
+{
+  "skill_name": "qa-backend",
+  "harness": "Each eval runs against a copy of a fixture folder. User answers are scripted in the prompt; a question with no scripted answer must be written to outputs/conversation.md under '## WAITING FOR USER' and the run stops there. Evals stop before launching the worker unless 'launch: yes' is scripted.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bun-express-lockout-idor",
+      "fixture": "bun-express-shop",
+      "prompt": "/qa-backend",
+      "scripted_answers": "Test DB: no TEST_DATABASE_URL → 'No, use a throwaway database'. Global: 400 for validation, 404 for other users' data. Access: orders owner + admin only, nothing shared. auth module: Ask me each — lockout 5 attempts / 15 min, keyed by both account and IP, correct password rejected during lock, X-Forwarded-For not trusted. orders module: ask each — quantity 0 → 400, max quantity 50, client total ignored, delete twice → 404. utils module: use defaults, accept. Confirm: Write the tests. Worker mode: Stop here.",
+      "expected_output": "qa/ added to .gitignore; detect_env reports bun + express and 'bun run test'; map_functions lists route handlers with IDs; every question is AskUserQuestion with 2-4 options and a Recommended first; NO question like 'should a wrong password log in?' (recorded as OBV-n instead); questions about lockout count/window/key and XFF spoofing ARE asked; qa/TEST_DECISIONS.md has Setup (throwaway Postgres), G-, OBV-, S- rows and F…-D… rows matching the answers; map_functions --accept stores hashes; qa/goal-prompt.md passes launch_worker.py --check with the test command `bun run test`; no application file changed; nothing committed.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "fastapi-rerun-one-changed-function",
+      "fixture": "fastapi-with-qa-state",
+      "prompt": "/qa-backend",
+      "scripted_answers": "Changed function F004 split_bill: 'Yes: maximum 50 people now'. Confirm: Write the tests. Worker mode: Stop here.",
+      "expected_output": "Only F004 is mentioned (status changed); the diff from map_functions --diff F004 is shown; options are concrete ('No, refactor only' / 'Yes: max people is now 50' / …); unchanged functions are not re-asked; old decision about the limit moves to Retired with the date, a new F004-D# is added with the next number; the goal-prompt work list contains only the new/changed IDs plus the retired ID under 'Retired'.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "report-mode",
+      "fixture": "node-with-qa-results",
+      "prompt": "/qa-backend --report",
+      "scripted_answers": "(none needed)",
+      "expected_output": "No interview; run_tests.py runs the stored junit command; every failing test is blame-checked (file rerun twice, decision compared); analysis.json covers every failure; make_report.py renders qa/TEST_FAILED.md with vscode://file links to the failing app lines and the test, expected vs actual, why, and numbered fix steps that contain no code; a flaky test is reported under Flaky, not as a code bug.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "security-report-to-tests",
+      "fixture": "express-with-security-report",
+      "prompt": "/qa-backend api",
+      "scripted_answers": "Test DB: TEST_DATABASE_URL already present and local. Accept defaults for every module. Confirm: Write the tests. Launch: yes, Auto mode.",
+      "expected_output": "Each testable finding in docs/SECURITY_PROBLEMS.md (IDOR on PATCH /users/:id, mass assignment of role, client-sent price) becomes a SEC-n decision; the worker writes tests titled with [SEC-n] that fail against the vulnerable code; check_tests.py prints READY; TEST_FAILED.md lists them as high-severity code bugs with the handler line linked; application code is untouched (check_tests reports 'app code: untouched').",
+      "files": []
+    }
+  ]
+}
